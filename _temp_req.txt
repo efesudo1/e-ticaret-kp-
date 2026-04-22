@@ -1,0 +1,314 @@
+PROJE ADI: PAZARLAMA VE E-TİCARET KPI DASHBOARD GELİŞTİRME
+1. PROJE VİZYONU VE İŞ HEDEFİ
+KPI (Key Performance Indicator), bir organizasyonun belirlediği hedeflere ne ölçüde ulaştığını değerlendirmek amacıyla kullanılan ölçülebilir performans göstergeleridir. Dijital pazarlama ve e-ticaret alanında KPI’lar; trafik, reklam performansı, dönüşüm oranı ve satış gibi kritik metrikler üzerinden işletmelerin performansını analiz etmeyi mümkün kılar.
+Bu proje, şirketlerin dijital pazarlama ve e-ticaret performansını ölçmek için kullandığı temel ve ileri seviye KPI’ları tek bir merkezde toplayan, gerçek zamanlıya yakın veri akışını simüle eden ve karar alma süreçlerini hızlandıran profesyonel bir dashboard sistemi geliştirmeyi amaçlamaktadır.
+Günümüzde ekipler veri odaklı karar almak isterken veriler çoğu zaman farklı platformlara dağılmış durumdadır. Bu durum, analiz süreçlerini zorlaştırmakta ve karar alma hızını düşürmektedir. Bu proje kapsamında geliştirilecek sistem:
+• Google Analytics, Meta Ads, Google Ads ve satış verilerini tek merkezde toplar
+• KPI’ları gerçek iş senaryolarına uygun şekilde hesaplar
+• Görselleştirme ve filtreleme araçlarıyla karar süreçlerini hızlandırır
+• Gerçek sistemlere entegre edilebilecek bir mimari yaklaşım sunar
+Proje tamamen dummy veri setleri üzerinden geliştirilecektir. 
+2. TEKNOLOJİ VE TEKNİK MİMARİ
+2.1 Frontend
+Aşağıdaki frameworklerden biri kullanılmalıdır:
+React
+Vue.js
+Angular
+Beklenen standartlar:
+Component bazlı mimari
+Responsive tasarım
+Grafik kütüphanesi önerisi:
+ApexCharts (önerilir)
+ECharts
+Chart.js
+2.2 Backend
+Aşağıdaki teknolojilerden biri kullanılabilir:
+Laravel (Önerilir)
+Node.js (Express)
+Python (FastAPI / Flask)
+Backend kullanılması durumunda:
+REST API mimarisi zorunludur
+JSON veri formatı kullanılmalıdır
+Cache yapısı önerilir
+2.3 Veri Depolama
+Proje kapsamında veri depolama sistemi olarak MySQL kullanılmalıdır.
+Beklenen yapı:
+Normalize edilmiş veri modeli
+KPI hesaplamaları için aggregation tabloları
+Filtreleme performansı için indexleme
+Tarih bazlı partition önerilir
+2.4 Veri Kaynak Simülasyonu
+Sistem aşağıdaki veri formatlarını içeri alabilmelidir:
+CSV
+XLSX
+JSON
+Import sırasında:
+Kolon eşleme
+Tip doğrulama
+Hata satırı raporu
+olmalıdır.
+2.5 API Yapısı 
+Sistem REST API mimarisi ile çalışmalıdır. 
+Tüm veri alışverişi JSON formatında yapılmalıdır. 
+2.6 Kimlik Doğrulama 
+Sistem için temel seviyede bir kimlik doğrulama mekanizması uygulanmalıdır. 
+Önerilen yöntem: 
+JWT Authentication 
+2.7 API Dokümantasyonu 
+API uç noktaları aşağıdaki araçlardan biri ile dokümante edilmelidir: 
+Swagger 
+OpenAPI 
+3. PROJE KAPSAMI (MVP)
+3.1 Veri Import Modülü
+Sistem, gerçek veri entegrasyonunu simüle edecek şekilde aşağıdaki kaynaklara uygun veri setlerini içeri aktarabilmelidir:
+3.1.1 Desteklenen Veri Kaynakları (Simülasyon)
+3.1.1.1 Google Analytics Veri Seti
+Aşağıdaki metrikleri içeren veri dosyaları yüklenebilmelidir:
+date
+source
+medium
+channel_group
+sessions
+users
+new_users
+bounce_rate
+avg_session_duration
+pages_per_session
+conversions
+revenue
+Açıklama: Bu veri seti web sitesi trafik performansını analiz etmek için kullanılacaktır ve KPI hesaplamalarında temel veri kaynağıdır.
+3.1.1.2 Meta Ads Veri Seti
+date
+campaign_name
+adset_name
+ad_name
+impressions
+clicks
+spend
+ctr
+cpc
+conversions
+conversion_value
+Açıklama: Bu veri seti Meta reklam performansını analiz etmek ve ROAS, CPC, CTR gibi metrikleri hesaplamak için kullanılacaktır.
+3.1.1.3 Google Ads Veri Seti
+date
+campaign_name
+ad_group
+impressions
+clicks
+cost
+ctr
+avg_cpc
+conversions
+conversion_value
+Açıklama: Bu veri seti Google Ads reklam performansını analiz etmek için kullanılacaktır.
+3.1.1.4 Satış Veritabanı Veri Seti (E-Ticaret)
+order_id
+order_date
+customer_id
+city
+device
+channel
+product_count
+order_revenue
+discount_amount
+refund_amount
+Açıklama: Bu veri seti e-ticaret performansı, dönüşüm oranı ve kanal bazlı ciro analizleri için kullanılacaktır.
+3.1.2 Import Sistem Gereksinimleri
+Sistem aşağıdaki özellikleri desteklemelidir:
+3.1.2.1 Dosya Desteği
+CSV
+XLSX
+JSON
+3.1.2.2 Import Özellikleri
+Veri önizleme ekranı
+Kolon eşleme (mapping)
+Veri tipi doğrulama
+Zorunlu alan kontrolü
+Duplicate kayıt kontrolü
+Hatalı satır raporu
+3.1.3 Veri Standartlaştırma
+Import sonrası sistem:
+Kanal isimlerini normalize etmeli
+Tarih formatlarını standardize etmeli
+Para birimini normalize etmeli
+Platform verilerini tek yapıda birleştirmelidir
+3.1.4 Import Sonrası Veri Akışı
+Import tamamlandıktan sonra:
+Veriler MySQL tablolarına yazılmalıdır
+KPI hesaplama süreçleri tetiklenmelidir
+Dashboard otomatik güncellenmelidir
+3.2 KPI Hesaplama Modülü
+Sistem aşağıdaki KPI’ları hesaplamalıdır:
+3.2.1 Trafik KPI’ları
+3.2.2 Reklam KPI’ları
+3.2.3 Satış KPI’ları
+3.2.4 Pazarlama Performans KPI’ları
+3.3 Dashboard Görselleştirme Modülü
+Dashboard bileşenlerinde kısıtlama yoktur.
+Ancak aşağıdaki yapı beklenir:
+KPI kartları
+Zaman serisi grafikleri
+Bar chart
+Donut chart
+Funnel
+Heatmap
+Cohort analiz
+Scatter chart
+Table view
+Pivot view
+Dashboard kullanıcıya özelleştirilebilir olmalıdır.
+3.4 Filtreleme ve Segmentasyon
+Filtreleme sistemi profesyonel BI tool mantığında olmalıdır.
+Temel Filtreler içerisinde şunlar bulunmalıdır;
+Tarih aralığı
+Kanal
+Kampanya
+Cihaz
+Ülke / şehir
+Gelişmiş Filtreler içerisinde şunlar bulunmalıdır;
+Ciro aralığı
+Sipariş sayısı
+ROAS aralığı
+Conversion aralığı
+Özel segment oluşturma
+3.4.1 Segmentasyon
+Kanal bazlı
+Kampanya bazlı
+Davranış bazlı
+Sipariş hacmine göre
+3.4.2 Filtreler
+Global çalışmalı
+Cross-filter desteklemeli
+URL parametre desteklemeli
+4. VERİ MODELİ (DETAYLI)
+traffic_data
+date
+channel
+sessions
+users
+new_users
+bounce_rate
+avg_session_duration
+pages_per_session
+ads_data
+date
+platform
+campaign_name
+adset
+impressions
+clicks
+spend
+conversions
+revenue
+sales_data
+order_id
+date
+revenue
+items
+discount
+refund
+channel
+device
+campaign_data
+campaign_name
+platform
+start_date
+end_date
+budget
+channel_mapping
+source
+medium
+channel_group
+5. API UÇ NOKTALARI
+6. KULLANICI ARAYÜZÜ VE SAYFA YAPISI
+7. GÜVENLİK VE KVKK UYUMU 
+Sistem aşağıdaki güvenlik prensiplerini desteklemelidir. 
+Veri Maskeleme: Hassas şirket verileri maskelenebilir olmalı. 
+Audit Log: Sistemde yapılan kritik işlemler loglanmalıdır. 
+Hata Loglama: API hataları ve yetkisiz erişim denemeleri sistem loglarında kayıt altına alınmalıdır. 
+8. BAŞARI SENARYOLARI
+Kanal bazlı ROAS düşüşü tespit edilebilmelidir
+Kampanya performansı analiz edilebilmelidir
+Günlük ciro trendi okunabilmelidir
+9. TESLİMAT TAKVİMİ
+Hafta 1 – Proje Başlangıcı ve Analiz
+Proje kapsamının detaylı incelenmesi
+KPI gereksinimlerinin netleştirilmesi
+Veri kaynaklarının (GA, Meta, Google Ads, satış) analiz edilmesi
+Kullanıcı senaryolarının çıkarılması
+İlk sistem mimarisi taslağı hazırlanması
+Teslim: Gereksinim dokümanı + sistem mimarisi taslağı
+Hafta 2 – Veri Modeli ve Teknik Tasarım
+MySQL veri modelinin tasarlanması
+ER diyagramı hazırlanması
+Import ve KPI hesaplama akışlarının planlanması
+API yapısının tasarlanması
+Teslim: ER diyagramı + teknik tasarım dokümanı
+Hafta 3 – Proje Kurulumu ve Altyapı
+Backend kurulumu
+Frontend proje kurulumu
+MySQL bağlantısı
+Ortam yapılandırmaları
+Teslim: Çalışan proje iskeleti
+Hafta 4 – Veri Import Modülü (Temel)
+Dosya yükleme sistemi
+CSV/XLSX/JSON okuma
+Veri önizleme ekranı
+Teslim: Çalışan import ekranı
+Hafta 5 – Veri Import Modülü (İleri Seviye)
+Kolon eşleme
+Veri doğrulama
+Hatalı veri raporu
+Import log sistemi
+Teslim: Tam çalışan import süreci
+Hafta 6 – Veri Normalizasyonu ve Temizleme
+Kanal eşleme sistemi
+Tarih format standardizasyonu
+Veri temizleme süreçleri
+Teslim: Normalize edilmiş veri akışı
+Hafta 7 – KPI Hesaplama Altyapısı
+KPI formüllerinin backend’de uygulanması
+Aggregation tablolarının oluşturulması
+İlk KPI testleri
+Teslim: KPI hesaplama servisi
+Hafta 8 – KPI API ve Backend Tamamlama
+KPI endpointleri
+Dashboard veri endpointleri
+Performans testleri
+Teslim: Tam çalışan backend
+Hafta 9 – Dashboard (Temel)
+KPI kartları
+Temel grafikler
+Layout sistemi
+Teslim: İlk dashboard versiyonu
+Hafta 10 – Dashboard (Gelişmiş)
+Funnel
+Cohort
+Heatmap
+Tablo ve pivot görünümleri
+Teslim: Gelişmiş dashboard
+Hafta 11 – Filtreleme ve Segmentasyon
+Global filtre sistemi
+Cross-filtering
+Segment oluşturma
+Teslim: Tam filtre sistemi
+Hafta 12 – Performans ve UX İyileştirme
+Cache
+Lazy loading
+Query optimizasyonu
+UI iyileştirme
+Teslim: Optimize edilmiş sistem
+Hafta 13 – Test Süreci
+Fonksiyonel test
+Performans test
+Edge case testleri
+Hata düzeltmeleri
+Teslim: Stabil sürüm
+Hafta 14 – Dokümantasyon ve Final Teslim
+Teknik dokümantasyon
+Kullanım kılavuzu
+API dokümantasyonu
+Final demo hazırlığı
+Teslim: Final proje paketi
+* Teslimat takvimi örnek olarak girilmiştir. Öğrenci ödev teslim sürecine göre tekrardan düzenlenecektir.

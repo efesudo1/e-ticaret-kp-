@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Sporthink Icon - Swoosh S -->
+  <rect width="48" height="48" rx="12" fill="#E30613"/>
+  <path d="M14 32C14 32 17 35 22 35C27 35 30 32 30 29C30 26 27 24.5 23 23C19 21.5 16 20 16 17C16 14 19 11 24 11C29 11 32 14 32 14" stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M22 8C22 8 28 7 32 11" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.7"/>
+</svg>

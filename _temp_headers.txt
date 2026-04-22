@@ -1,0 +1,44 @@
+
+=== campaigns.csv (cols=10) ===
+Headers: ['\ufeffcampaign_name', 'platform', 'campaign_type', 'objective', 'start_date', 'end_date', 'daily_budget', 'total_budget', 'target_audience', 'status']
+Row1: ['SP_Meta_BrandAwareness_Q4_2024', 'meta', 'OUTCOME_AWARENESS', 'Awareness', '2024-10-01', '2024-12-31', '300.0', '27600', '18-55 Tüm, Spor İlgilenen, Türkiye Geneli', 'completed']
+
+=== channel_mapping.csv (cols=3) ===
+Headers: ['\ufeffsource', 'medium', 'channel_group']
+Row1: ['google', 'organic', 'Organic Search']
+
+=== customers.csv (cols=12) ===
+Headers: ['\ufeffcustomer_id', 'customer_name', 'first_order_date', 'registration_date', 'city', 'gender', 'age_group', 'registration_source', 'is_newsletter_subscriber', 'total_orders', 'total_revenue', 'last_order_date']
+Row1: ['CUST-00001', 'Hande Uçar', '2024-02-09', '2024-01-26', 'Istanbul', 'F', '35-44', 'Paid Social', 'False', '0', '0.0', '']
+
+=== ga4_item_interactions.csv (cols=14) ===
+Headers: ['\ufeffdate', 'itemId', 'itemName', 'itemCategory', 'itemCategory2', 'itemBrand', 'itemsViewed', 'itemsAddedToCart', 'itemsCheckedOut', 'itemsPurchased', 'itemRevenue', 'itemListViews', 'itemListClicks', 'cartToViewRate']
+Row1: ['20241001', 'SP-AYK-GN-091', 'Columbia Go Walk 7 Erkek Günlük Ayakkabı', 'Ayakkabı', 'Günlük Ayakkabı', 'Columbia', '11', '2', '1', '0', '0.0', '53', '19', '0.1818']
+
+=== ga4_traffic.csv (cols=21) ===
+Headers: ['\ufeffdate', 'sessionSource', 'sessionMedium', 'sessionCampaignName', 'sessionDefaultChannelGroup', 'deviceCategory', 'city', 'landingPagePlusQueryString', 'newVsReturning', 'sessions', 'totalUsers', 'newUsers', 'bounceRate', 'averageSessionDuration', 'screenPageViewsPerSession', 'engagedSessions', 'engagementRate', 'userEngagementDuration', 'conversions', 'purchaseRevenue', 'transactions']
+Row1: ['20241001', 'google', 'organic', '(organic)', 'Organic Search', 'mobile', 'Antalya', '/kadin', 'new', '235', '208', '176', '0.6376', '68.6', '1.73', '65', '0.2766', '4459.0', '8', '14989.1', '7']
+
+=== google_ads.csv (cols=37) ===
+Headers: ['\ufeffsegments.date', 'customer.id', 'customer.descriptive_name', 'campaign.id', 'campaign.name', 'campaign.status', 'campaign.advertising_channel_type', 'ad_group.id', 'ad_group.name', 'ad_group.status', 'segments.device', 'segments.ad_network_type', 'segments.product_item_id', 'segments.product_title', 'segments.product_brand', 'segments.product_type_l1', 'segments.product_type_l2', 'ad_group_criterion.keyword.text', 'ad_group_criterion.keyword.match_type', 'metrics.impressions', 'metrics.clicks', 'metrics.cost_micros', 'metrics.ctr', 'metrics.average_cpc', 'metrics.average_cpm', 'metrics.conversions', 'metrics.conversions_value', 'metrics.all_conversions', 'metrics.all_conversions_value', 'metrics.cost_per_conversion', 'metrics.conversions_from_interactions_rate', 'metrics.value_per_conversion', 'metrics.search_impression_share', 'metrics.search_budget_lost_impression_share', 'metrics.search_rank_lost_impression_share', 'metrics.view_through_conversions', 'metrics.interaction_rate']
+Row1: ['2024-10-01', '1234567890', 'Sporthink TR', '7414408476', 'SP_Google_Search_Brand', 'ENABLED', 'SEARCH', '1417180968', 'sporthink_exact', 'ENABLED', 'MOBILE', 'SEARCH', '', '', '', '', '', 'sporthink', 'EXACT', '208', '9', '30293399', '0.043269', '3254209', '145487465', '0.5', '811.5', '0.5', '909.03', '65287499', '0.055556', '1748.92', '0.73', '0.06', '0.21', '3', '0.043269']
+
+=== meta_ads.csv (cols=33) ===
+Headers: ['\ufeffdate_start', 'date_stop', 'account_id', 'account_name', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name', 'objective', 'buying_type', 'impressions', 'reach', 'frequency', 'clicks', 'inline_link_clicks', 'spend', 'cpc', 'cpm', 'cpp', 'ctr', 'inline_link_click_ctr', 'actions:link_click', 'actions:landing_page_view', 'actions:offsite_conversion.fb_pixel_view_content', 'actions:offsite_conversion.fb_pixel_add_to_cart', 'actions:offsite_conversion.fb_pixel_initiate_checkout', 'actions:offsite_conversion.fb_pixel_purchase', 'action_values:offsite_conversion.fb_pixel_purchase', 'actions:page_engagement', 'actions:post_engagement', 'actions:video_view']
+Row1: ['2024-10-01', '2024-10-01', 'act_987654321', 'Sporthink TR', '8726810040959039', 'SP_Meta_BrandAwareness_Q4_2024', '6185498856456084', '35-44_Erkek_Izmir_Ankara', '1769137460537145', 'Sneaker_Carousel_V1', 'OUTCOME_AWARENESS', 'AUCTION', '741', '374', '1.98', '16', '11', '28.2', '1.76', '38.06', '75.4', '2.25', '1.48', '11', '8', '4', '0', '0', '0', '0.0', '8', '4', '0']
+
+=== meta_ads_breakdowns.csv (cols=11) ===
+Headers: ['\ufeffdate_start', 'date_stop', 'campaign_name', 'adset_name', 'ad_name', 'publisher_platform', 'platform_position', 'impression_device', 'impressions', 'clicks', 'spend']
+Row1: ['2024-10-01', '2024-10-01', 'SP_Meta_BrandAwareness_Q4_2024', '35-44_Erkek_Izmir_Ankara', 'Sneaker_Carousel_V1', 'facebook', 'feed', 'mobile_web', '80', '1', '3.05']
+
+=== order_items.csv (cols=12) ===
+Headers: ['\ufefforder_id', 'line_id', 'item_id', 'item_name', 'item_category', 'item_category2', 'item_brand', 'quantity', 'unit_price', 'line_total', 'discount_amount', 'refund_amount']
+Row1: ['SP-2024-000001', '1', 'SP-AYK-SN-061', 'Puma Chuck Taylor All Star Unisex Sneaker', 'Ayakkabı', 'Sneaker', 'Puma', '1', '1899.0', '1899.0', '0.0', '0.0']
+
+=== orders.csv (cols=18) ===
+Headers: ['\ufefforder_id', 'order_date', 'customer_id', 'city', 'device', 'channel', 'source', 'medium', 'campaign_name', 'coupon_code', 'product_count', 'order_revenue', 'shipping_cost', 'discount_amount', 'refund_amount', 'net_revenue', 'order_status', 'payment_method']
+Row1: ['SP-2024-000001', '2024-10-01 12:38:42', 'CUST-01502', 'Istanbul', 'tablet', 'Organic Search', 'google', 'organic', '', 'KISFIRSATI', '5', '10155.0', '0.0', '792.63', '0.0', '9362.37', 'shipped', 'debit_card']
+
+=== products.csv (cols=13) ===
+Headers: ['\ufeffsku', 'product_name', 'category', 'sub_category', 'brand', 'gender', 'price', 'cost_price', 'stock_quantity', 'is_active', 'created_at', 'color', 'size_range']
+Row1: ['SP-AYK-KS-001', 'New Balance Air Zoom Pegasus 41 Erkek Koşu Ayakkabısı', 'Ayakkabı', 'Koşu Ayakkabısı', 'New Balance', 'Erkek', '2939.0', '1257.62', '284', 'True', '2024-02-19', 'Beyaz', '36-46']

@@ -1,0 +1,32 @@
+Talep Konusu:
+Pazarlama ve E-Ticaret KPI Dashboard Projesi için Test ve Canlı Ortam Sunucu Kurulumu
+Talep Açıklaması:
+"Pazarlama ve E-Ticaret KPI Dashboard Geliştirme" projesinin çalışabilmesi, API entegrasyonlarının yapılması, veri tabanı süreçlerinin yönetilmesi ve React tabanlı önyüzün (frontend) sunulabilmesi için bir sunucu altyapısına ihtiyaç duyulmaktadır. Node.js backend ve MySQL veri tabanı kullanılacak olup dış kaynaklardan veri import işlemleri gerçekleştirilecektir.
+Talep Edilen Kurulum:
+1. -İp, port DNS Yönlendirmesi
+   - İlgili IP adresine DNS yönlendirmesi yapılması
+2. Sunucu Donanım Gereksinimleri 
+   - İşlemci (CPU): En az 2 vCPU 
+   - Bellek (RAM): 8 GB 
+   - Depolama: Veri import işlemleri ve çok büyük verilerle çalışacağımız için en az 128 GB
+3. Yazılım ve Servis Gereksinimleri
+   - İşletim Sistemi: Ubuntu en az 22.04 LTS 
+   - Web Sunucusu: Nginx (Reverse Proxy olarak kullanılacak)
+   - Çalışma Ortamı: Node.js (v20 veya üzeri) ve npm/yarn / pm2
+   - Veri Tabanı: MySQL 8.0 ve üzeri
+   - Önbellekleme: Redis Server (KPI hesaplamaları performansı için)
+4. Ağ ve Güvenlik
+   - HTTPS aktif olacak şekilde SSL sertifikası tanımlanması (Let’s Encrypt vb.)
+   - Node.js API (örn: 3000 portu) ve MySQL (3306) için gerekirse internal ağ yetkilendirmesi
+   - Geliştiriciler için SSH (Root/Sudo) erişimi tanımlanması veya CI/CD aracı kullanılacaksa ilgili bağlantı izinleri
+   - Dummy veriler
+Erişim ve Test:
+ - Subdomainin web tarayıcıda ilgili frontend uygulamasına yönlenerek açılması
+ - Node.js Backend API isteklerinin (CORS ve Nginx Proxy ayarları) sorunsuz çalışması
+ - Veritabanı ve Redis bağlantılarının doğrulanması
+Beklenen Çıktı:
+ - Belirtilen donanım ve yazılımlara sahip sunucunun teslim edilmesi
+ - Subdomain ve SSL kurulumu tamamlanarak https üzerinden erişilebilir olması
+ - Geliştirici ekibinin (SSH/SFTP) erişim bilgilerinin paylaşılması
+Amaç:
+Geliştirilecek MVP (Minimum Viable Product) dashboard sisteminin şirket ağında güvenli, hızlı ve sürekli erişilebilir bir test/canlı ortamda yayınlanmasını sağlamak.

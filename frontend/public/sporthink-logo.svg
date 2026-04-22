@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" fill="none">
+  <!-- Sporthink Logo - Swoosh S mark + text -->
+  <g>
+    <!-- Swoosh S mark -->
+    <path d="M8 38C8 38 12 42 20 42C28 42 32 38 32 34C32 30 28 28 22 26C16 24 12 22 12 18C12 14 16 10 24 10C32 10 36 14 36 14" stroke="#E30613" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <path d="M20 6C20 6 30 4 36 10" stroke="#E30613" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.6"/>
+    <!-- Text: sporthink -->
+    <text x="46" y="34" font-family="'Futura PT', 'Arial', sans-serif" font-size="28" font-weight="700" fill="currentColor" letter-spacing="-0.5">
+      <tspan fill="currentColor">sport</tspan><tspan fill="#E30613">h</tspan><tspan fill="currentColor">ink</tspan>
+    </text>
+    <!-- Registered mark -->
+    <circle cx="186" cy="14" r="3" stroke="currentColor" stroke-width="0.8" fill="none"/>
+  </g>
+</svg>
