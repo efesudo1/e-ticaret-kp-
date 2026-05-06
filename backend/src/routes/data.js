@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const db = require('../config/database');
+const redis = require('../config/redis');
 const router = express.Router();
 
 /**
@@ -138,7 +139,16 @@ router.delete('/:table/clear', authenticate, async (req, res) => {
     await db.query(`TRUNCATE TABLE \`${table}\``);
     await db.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    res.json({ message: `${table} tablosu başarıyla temizlendi.` });
+    // Clear all KPI cache and related caches
+    const patterns = ['kpi:*', 'import:*', 'data:*'];
+    for (const pattern of patterns) {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    }
+
+    res.json({ message: `${table} tablosu başarıyla temizlendi ve cache güncellendi.` });
   } catch (error) {
     // Make sure we re-enable foreign keys if an error occurs
     await db.query('SET FOREIGN_KEY_CHECKS = 1').catch(e => console.error(e));

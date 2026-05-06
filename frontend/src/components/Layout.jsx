@@ -1,28 +1,20 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useFilters } from '../context/FilterContext';
 import {
-  LayoutDashboard, BarChart3, TrendingUp, ShoppingCart,
-  Package, Megaphone, Upload, ChevronLeft, ChevronRight,
-  LogOut, User, Filter, X, Search, Users, Briefcase,
-  DollarSign, UserCheck, PieChart
+  LayoutDashboard, Megaphone, Package, PieChart, Upload,
+  ChevronLeft, ChevronRight, LogOut, Users, FileText
 } from 'lucide-react';
 
 const navItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { path: '/executive', icon: Briefcase, label: 'Yönetici Özeti' },
-  { section: 'ANALİZ' },
-  { path: '/traffic', icon: BarChart3, label: 'Trafik Analizi' },
-  { path: '/ads', icon: TrendingUp, label: 'Reklam Performansı' },
-  { path: '/sales', icon: ShoppingCart, label: 'Satış Analizi' },
-  { path: '/profitability', icon: DollarSign, label: 'Kârlılık Analizi' },
-  { path: '/products', icon: Package, label: 'Ürün Performansı' },
-  { path: '/campaigns', icon: Megaphone, label: 'Kampanyalar' },
-  { path: '/customers', icon: UserCheck, label: 'Müşteri Analizi' },
+  { path: '/',           icon: LayoutDashboard, label: 'Genel Bakış',         exact: true },
+  { path: '/campaigns',  icon: Megaphone,       label: 'Kampanyalar' },
+  { path: '/products',   icon: Package,         label: 'Ürünler' },
+  { path: '/platforms',  icon: PieChart,        label: 'Platformlar' },
+  { path: '/reports',    icon: FileText,        label: 'Raporlar' },
   { section: 'SİSTEM' },
-  { path: '/import', icon: Upload, label: 'Veri Import' },
-  { path: '/users', icon: Users, label: 'Kullanıcı Yönetimi', adminOnly: true },
+  { path: '/import',     icon: Upload,          label: 'Veri Import' },
+  { path: '/users',      icon: Users,           label: 'Kullanıcı Yönetimi', adminOnly: true },
 ];
 
 export default function Layout() {
@@ -31,37 +23,17 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const metricTitles = {
-    sessions: 'Oturum Analizi',
-    users: 'Kullanıcı Analizi',
-    orders: 'Sipariş Analizi',
-    revenue: 'Gelir Analizi',
-    adspend: 'Reklam Harcama Analizi',
-    roas: 'ROAS Analizi',
-    conversion: 'Dönüşüm Analizi',
-    aov: 'Ort. Sipariş Değeri Analizi',
-  };
-
   const getPageTitle = () => {
     const titles = {
-      '/': 'Dashboard',
-      '/executive': 'Yönetici Özeti',
-      '/traffic': 'Trafik Analizi',
-      '/ads': 'Reklam Performansı',
-      '/sales': 'Satış Analizi',
-      '/profitability': 'Kârlılık Analizi',
-      '/products': 'Ürün Performansı',
+      '/':          'Genel Bakış',
       '/campaigns': 'Kampanyalar',
-      '/customers': 'Müşteri Analizi',
-      '/import': 'Veri Import',
-      '/users': 'Kullanıcı Yönetimi'
+      '/products':  'Ürünler',
+      '/platforms': 'Platformlar',
+      '/reports':   'Raporlar',
+      '/import':    'Veri Import',
+      '/users':     'Kullanıcı Yönetimi'
     };
-    // Handle dynamic analytics routes
-    if (location.pathname.startsWith('/analytics/')) {
-      const metricType = location.pathname.split('/analytics/')[1];
-      return metricTitles[metricType] || 'Metrik Detayı';
-    }
-    return titles[location.pathname] || 'Dashboard';
+    return titles[location.pathname] || 'Genel Bakış';
   };
 
   return (

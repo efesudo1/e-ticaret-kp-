@@ -19,6 +19,7 @@ const importRoutes = require('./routes/import');
 const kpiRoutes = require('./routes/kpi');
 const dataRoutes = require('./routes/data');
 const filterRoutes = require('./routes/filters');
+const reportRoutes = require('./routes/reports');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -86,6 +87,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/kpi', kpiRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/filters', filterRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {

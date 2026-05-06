@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3000/api';
+// Production: relative '/api' (nginx/caddy reverse proxy üzerinden backend'e)
+// Development: VITE_API_BASE veya http://localhost:3000/api
+const API_BASE = import.meta.env.VITE_API_BASE
+  || (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api');
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -73,6 +76,11 @@ export const kpiAPI = {
   budgetTracking: (params) => api.get('/kpi/budget-tracking', { params }),
   stockAnalysis: (params) => api.get('/kpi/stock-analysis', { params }),
   metricDetail: (type, params) => api.get(`/kpi/metric-detail/${type}`, { params }),
+  // Yönetici odaklı endpoint'ler
+  campaignProductBreakdown: (params) => api.get('/kpi/campaign-product-breakdown', { params }),
+  productCampaignBreakdown: (params) => api.get('/kpi/product-campaign-breakdown', { params }),
+  productPlatformBreakdown: (params) => api.get('/kpi/product-platform-breakdown', { params }),
+  platformOverview:         (params) => api.get('/kpi/platform-overview',          { params }),
 };
 
 // Data
@@ -86,6 +94,13 @@ export const dataAPI = {
 // Filters
 export const filterAPI = {
   options: () => api.get('/filters/options'),
+};
+
+// Reports
+export const reportsAPI = {
+  downloadExcel:                 (params) => api.get('/reports/excel',                       { params, responseType: 'blob' }),
+  downloadCampaignsExcel:        (params) => api.get('/reports/excel/campaigns',             { params, responseType: 'blob' }),
+  downloadCampaignComparisonExcel: (params) => api.get('/reports/excel/campaign-comparison', { params, responseType: 'blob' }),
 };
 
 // Health

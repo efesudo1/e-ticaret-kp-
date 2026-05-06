@@ -1,0 +1,45 @@
+# Caddy — otomatik Let's Encrypt HTTPS
+# Domain'i .env.production'da DOMAIN=... olarak ayarla, restart'la otomatik sertifika çeker.
+
+{$DOMAIN} {
+    # /api → backend container
+    handle /api/* {
+        reverse_proxy backend:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # /api-docs (Swagger) → backend
+    handle /api-docs* {
+        reverse_proxy backend:3000
+    }
+
+    # Diğer her şey → frontend (nginx)
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    # Body limiti (CSV/XLSX import)
+    request_body {
+        max_size 60MB
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+
+    # Security headers
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    encode gzip zstd
+}

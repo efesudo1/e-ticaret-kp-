@@ -1,0 +1,37 @@
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Build output
+dist/
+build/
+
+# Database backups (büyük dosyalar)
+database/safety_backup_*.sql
+database/init/00_backup.sql
+kpi_dashboard_backup.sql
+
+# Geçici dosyalar
+_temp_*.txt
+
+# Docker volumes (mount edilmiş klasörler)
+backend/uploads/
+backend/logs/

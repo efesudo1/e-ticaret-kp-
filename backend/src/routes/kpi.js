@@ -1,7 +1,11 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
+const cacheMiddleware = require('../middleware/caching');
 const KpiService = require('../services/kpiService');
 const router = express.Router();
+
+// Apply caching to all KPI GET endpoints
+router.use(authenticate, cacheMiddleware('kpi'));
 
 /**
  * @swagger
@@ -311,6 +315,54 @@ router.get('/metric-detail/:type', authenticate, async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error(`Metric detail error (${req.params.type}):`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// YÖNETİCİ ODAKLI ENDPOINT'LER
+// ============================================================
+
+router.get('/campaign-product-breakdown', authenticate, async (req, res) => {
+  try {
+    const kpiService = new KpiService();
+    const data = await kpiService.getCampaignProductBreakdown(req.query);
+    res.json(data);
+  } catch (error) {
+    console.error('campaign-product-breakdown error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/product-campaign-breakdown', authenticate, async (req, res) => {
+  try {
+    const kpiService = new KpiService();
+    const data = await kpiService.getProductCampaignBreakdown(req.query);
+    res.json(data);
+  } catch (error) {
+    console.error('product-campaign-breakdown error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/product-platform-breakdown', authenticate, async (req, res) => {
+  try {
+    const kpiService = new KpiService();
+    const data = await kpiService.getProductPlatformBreakdown(req.query);
+    res.json(data);
+  } catch (error) {
+    console.error('product-platform-breakdown error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/platform-overview', authenticate, async (req, res) => {
+  try {
+    const kpiService = new KpiService();
+    const data = await kpiService.getPlatformOverview(req.query);
+    res.json(data);
+  } catch (error) {
+    console.error('platform-overview error:', error);
     res.status(500).json({ error: error.message });
   }
 });

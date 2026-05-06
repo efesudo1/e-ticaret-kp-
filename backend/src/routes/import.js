@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { authenticate, authorize } = require('../middleware/auth');
 const ImportService = require('../services/importService');
 const db = require('../config/database');
+const redis = require('../config/redis');
 const router = express.Router();
 
 // Multer config for file uploads
@@ -171,6 +172,15 @@ router.post('/execute', authenticate, authorize('admin', 'marketing'), async (re
         importId
       ]
     );
+
+    // Clear all KPI cache after successful import
+    const patterns = ['kpi:*', 'import:*', 'data:*'];
+    for (const pattern of patterns) {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    }
 
     // Audit log section omitted because audit_log table doesn't exist
 

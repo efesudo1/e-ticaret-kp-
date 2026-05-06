@@ -2018,6 +2018,549 @@ class KpiService {
       dailyAOV, channelAOV, paymentAOV, itemCountDist, couponAOV, deviceAOV,
     };
   }
+
+  // ============================================================
+  // YÖNETİCİ ODAKLI ENDPOINT'LER (yeni — eski metodlara dokunulmadı)
+  // ============================================================
+
+  buildOrderDateFilter(filters = {}) {
+    const conditions = [];
+    const params = [];
+    if (filters.startDate) {
+      conditions.push("DATE_FORMAT(o.order_date, '%Y%m%d') >= ?");
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      conditions.push("DATE_FORMAT(o.order_date, '%Y%m%d') <= ?");
+      params.push(filters.endDate);
+    }
+    if (filters.channel)  { conditions.push('o.channel = ?');        params.push(filters.channel); }
+    if (filters.campaign) { conditions.push('o.campaign_name = ?');  params.push(filters.campaign); }
+    if (filters.device)   { conditions.push('o.device = ?');         params.push(filters.device); }
+    if (filters.city)     { conditions.push('o.city = ?');           params.push(filters.city); }
+    // platform filter: orders'a ait kampanyanın c.platform değeri 'meta' / 'google'.
+    // 'all' | undefined → filtre yok. NOT: bu koşul SQL'de `campaigns c` JOIN gerektirir.
+    if (filters.platform && filters.platform !== 'all') {
+      conditions.push('c.platform = ?');
+      params.push(filters.platform);
+    }
+    return { conditions, params };
+  }
+
+  _orderPlatformExpr() {
+    return `CASE
+      WHEN c.platform = 'meta'   THEN 'Meta'
+      WHEN c.platform = 'google' THEN 'Google'
+      WHEN o.channel LIKE 'Organic%' THEN 'Organic'
+      WHEN o.channel = 'Direct' OR o.campaign_name IS NULL OR o.campaign_name = '' THEN 'Direct'
+      ELSE COALESCE(o.channel, 'Other')
+    END`;
+  }
+
+  // A) Kampanya × Ürün — her kampanyanın top-N satılan ürünü
+  async getCampaignProductBreakdown(filters = {}) {
+    const cacheKey = `cpb:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    const topCampaigns = Math.min(parseInt(filters.topCampaigns) || 10, 100);
+    const limitPerCampaign = Math.min(parseInt(filters.limitPerCampaign) || 5, 20);
+    const direction = filters.direction === 'bottom' ? 'ASC' : 'DESC';
+
+    const { conditions, params } = this.buildOrderDateFilter(filters);
+    const baseWhere = ["o.campaign_name IS NOT NULL", "o.campaign_name <> ''", ...conditions].join(' AND ');
+
+    // Top kampanyalar — ürün sıralaması değişse de kampanya listesi her zaman ciro DESC
+    const [topRows] = await db.query(
+      `SELECT o.campaign_name, SUM(oi.line_total) AS totalRevenue,
+              SUM(oi.quantity) AS totalUnits, COUNT(DISTINCT o.order_id) AS orderCount
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.order_id
+       LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+       WHERE ${baseWhere}
+       GROUP BY o.campaign_name
+       ORDER BY totalRevenue DESC
+       LIMIT ?`,
+      [...params, topCampaigns]
+    );
+
+    if (topRows.length === 0) {
+      const empty = { campaigns: [] };
+      await this.setCache(cacheKey, empty);
+      return empty;
+    }
+
+    const campaignNames = topRows.map(r => r.campaign_name);
+
+    // Her kampanya için top-N ürün (window function)
+    const placeholders = campaignNames.map(() => '?').join(',');
+    const productWhere = [`o.campaign_name IN (${placeholders})`, ...conditions].join(' AND ');
+    const [productRows] = await db.query(
+      `SELECT campaign_name, sku, item_name, item_brand, item_category, units_sold, revenue, rn
+       FROM (
+         SELECT o.campaign_name,
+                oi.item_id AS sku, oi.item_name, oi.item_brand, oi.item_category,
+                SUM(oi.quantity) AS units_sold,
+                SUM(oi.line_total) AS revenue,
+                ROW_NUMBER() OVER (PARTITION BY o.campaign_name ORDER BY SUM(oi.line_total) ${direction}) AS rn
+         FROM orders o
+         JOIN order_items oi ON oi.order_id = o.order_id
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         WHERE ${productWhere}
+         GROUP BY o.campaign_name, oi.item_id, oi.item_name, oi.item_brand, oi.item_category
+         HAVING revenue > 0
+       ) ranked
+       WHERE rn <= ?
+       ORDER BY campaign_name, rn`,
+      [...campaignNames, ...params, limitPerCampaign]
+    );
+
+    // Spend (Meta + Google), date filter ads tablolarına ayrı uygulanmalı
+    const adsParams = [];
+    let adsDateClause = '';
+    if (filters.startDate) {
+      adsDateClause += " AND DATE_FORMAT(date_start, '%Y%m%d') >= ? ";
+      adsParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      adsDateClause += " AND DATE_FORMAT(date_start, '%Y%m%d') <= ? ";
+      adsParams.push(filters.endDate);
+    }
+    let googleDateClause = '';
+    const gParams = [];
+    if (filters.startDate) {
+      googleDateClause += " AND DATE_FORMAT(date, '%Y%m%d') >= ? ";
+      gParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      googleDateClause += " AND DATE_FORMAT(date, '%Y%m%d') <= ? ";
+      gParams.push(filters.endDate);
+    }
+
+    // Platform filter'a göre spend tablolarını seç
+    const platformFilter = filters.platform && filters.platform !== 'all' ? filters.platform : 'all';
+    let spendQuery = '';
+    let spendParams = [];
+    if (platformFilter === 'meta') {
+      spendQuery = `SELECT campaign_name, SUM(spend) AS spend FROM meta_ads
+                     WHERE campaign_name IN (${placeholders}) ${adsDateClause}
+                     GROUP BY campaign_name`;
+      spendParams = [...campaignNames, ...adsParams];
+    } else if (platformFilter === 'google') {
+      spendQuery = `SELECT campaign_name, SUM(cost_micros)/1000000 AS spend FROM google_ads
+                     WHERE campaign_name IN (${placeholders}) ${googleDateClause}
+                     GROUP BY campaign_name`;
+      spendParams = [...campaignNames, ...gParams];
+    } else {
+      spendQuery = `SELECT campaign_name, SUM(spend) AS spend FROM meta_ads
+                     WHERE campaign_name IN (${placeholders}) ${adsDateClause}
+                     GROUP BY campaign_name
+                    UNION ALL
+                    SELECT campaign_name, SUM(cost_micros)/1000000 AS spend FROM google_ads
+                     WHERE campaign_name IN (${placeholders}) ${googleDateClause}
+                     GROUP BY campaign_name`;
+      spendParams = [...campaignNames, ...adsParams, ...campaignNames, ...gParams];
+    }
+    const [spendRows] = await db.query(spendQuery, spendParams);
+
+    const spendByCampaign = {};
+    for (const row of spendRows) {
+      spendByCampaign[row.campaign_name] = (spendByCampaign[row.campaign_name] || 0) + Number(row.spend || 0);
+    }
+
+    // campaigns master
+    const [campMeta] = await db.query(
+      `SELECT campaign_name, platform, objective, daily_budget, status FROM campaigns
+        WHERE campaign_name IN (${placeholders})`,
+      campaignNames
+    );
+    const metaByCampaign = {};
+    for (const c of campMeta) metaByCampaign[c.campaign_name] = c;
+
+    const productsByCampaign = {};
+    for (const p of productRows) {
+      if (!productsByCampaign[p.campaign_name]) productsByCampaign[p.campaign_name] = [];
+      productsByCampaign[p.campaign_name].push({
+        sku: p.sku, item_name: p.item_name, item_brand: p.item_brand, item_category: p.item_category,
+        units_sold: Number(p.units_sold), revenue: Number(p.revenue), rank: Number(p.rn),
+      });
+    }
+
+    const campaigns = topRows.map(r => {
+      const spend = Number(spendByCampaign[r.campaign_name] || 0);
+      const totalRevenue = Number(r.totalRevenue);
+      const meta = metaByCampaign[r.campaign_name] || {};
+      return {
+        campaign_name: r.campaign_name,
+        platform: meta.platform || null,
+        objective: meta.objective || null,
+        status: meta.status || null,
+        spend,
+        totalRevenue,
+        totalUnits: Number(r.totalUnits),
+        orderCount: Number(r.orderCount),
+        roas: spend > 0 ? totalRevenue / spend : null,
+        topProducts: productsByCampaign[r.campaign_name] || [],
+      };
+    });
+
+    const result = { campaigns };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
+
+  // B) Ürün × Kampanya — her ürünün en kazandıran kampanyaları
+  async getProductCampaignBreakdown(filters = {}) {
+    const cacheKey = `pcb:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    const limitProducts = Math.min(parseInt(filters.limitProducts) || 50, 200);
+    const limitCampaignsPerProduct = Math.min(parseInt(filters.limitCampaignsPerProduct) || 5, 20);
+    const sku = filters.sku || null;
+
+    const { conditions, params } = this.buildOrderDateFilter(filters);
+    const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    let productList;
+    if (sku) {
+      productList = [{ sku }];
+      const [skuMeta] = await db.query(
+        `SELECT oi.item_id AS sku, MAX(oi.item_name) AS item_name,
+                MAX(oi.item_brand) AS item_brand, MAX(oi.item_category) AS item_category,
+                SUM(oi.quantity) AS totalUnits, SUM(oi.line_total) AS totalRevenue,
+                COUNT(DISTINCT oi.order_id) AS orderCount
+         FROM order_items oi
+         JOIN orders o ON o.order_id = oi.order_id
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         ${whereClause ? whereClause + ' AND' : 'WHERE'} oi.item_id = ?
+         GROUP BY oi.item_id`,
+        [...params, sku]
+      );
+      if (skuMeta.length === 0) {
+        const empty = { products: [] };
+        await this.setCache(cacheKey, empty);
+        return empty;
+      }
+      productList = skuMeta;
+    } else {
+      const [topProducts] = await db.query(
+        `SELECT oi.item_id AS sku, MAX(oi.item_name) AS item_name,
+                MAX(oi.item_brand) AS item_brand, MAX(oi.item_category) AS item_category,
+                SUM(oi.quantity) AS totalUnits, SUM(oi.line_total) AS totalRevenue,
+                COUNT(DISTINCT oi.order_id) AS orderCount
+         FROM order_items oi
+         JOIN orders o ON o.order_id = oi.order_id
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         ${whereClause}
+         GROUP BY oi.item_id
+         ORDER BY totalRevenue DESC
+         LIMIT ?`,
+        [...params, limitProducts]
+      );
+      productList = topProducts;
+    }
+
+    if (productList.length === 0) {
+      const empty = { products: [] };
+      await this.setCache(cacheKey, empty);
+      return empty;
+    }
+
+    const skus = productList.map(p => p.sku);
+    const skuPlaceholders = skus.map(() => '?').join(',');
+    const campaignWhere = [`oi.item_id IN (${skuPlaceholders})`, ...conditions].join(' AND ');
+
+    const limitClause = sku ? '' : 'WHERE rn <= ?';
+    const queryParams = [...skus, ...params];
+    if (!sku) queryParams.push(limitCampaignsPerProduct);
+
+    const [campRows] = await db.query(
+      `SELECT sku, campaign_name, platform, revenue, units, orders, rn
+       FROM (
+         SELECT oi.item_id AS sku,
+                COALESCE(NULLIF(o.campaign_name, ''), '(direct/organic)') AS campaign_name,
+                c.platform,
+                SUM(oi.line_total) AS revenue,
+                SUM(oi.quantity) AS units,
+                COUNT(DISTINCT o.order_id) AS orders,
+                ROW_NUMBER() OVER (
+                  PARTITION BY oi.item_id
+                  ORDER BY SUM(oi.line_total) DESC
+                ) AS rn
+         FROM order_items oi
+         JOIN orders o ON o.order_id = oi.order_id
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         WHERE ${campaignWhere}
+         GROUP BY oi.item_id, COALESCE(NULLIF(o.campaign_name, ''), '(direct/organic)'), c.platform
+       ) ranked
+       ${limitClause}
+       ORDER BY sku, rn`,
+      queryParams
+    );
+
+    const campsBySku = {};
+    for (const row of campRows) {
+      if (!campsBySku[row.sku]) campsBySku[row.sku] = [];
+      campsBySku[row.sku].push({
+        campaign_name: row.campaign_name,
+        platform: row.platform,
+        revenue: Number(row.revenue),
+        units: Number(row.units),
+        orders: Number(row.orders),
+        rank: Number(row.rn),
+      });
+    }
+
+    const products = productList.map(p => ({
+      sku: p.sku,
+      item_name: p.item_name,
+      item_brand: p.item_brand,
+      item_category: p.item_category,
+      totalRevenue: Number(p.totalRevenue),
+      totalUnits: Number(p.totalUnits),
+      orderCount: Number(p.orderCount),
+      campaigns: campsBySku[p.sku] || [],
+    }));
+
+    const result = { products };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
+
+  // C) Ürün × Platform matrisi
+  async getProductPlatformBreakdown(filters = {}) {
+    const cacheKey = `ppb:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    const limitProducts = Math.min(parseInt(filters.limitProducts) || 50, 200);
+
+    const { conditions, params } = this.buildOrderDateFilter(filters);
+    const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // Top ürünler
+    const [topProducts] = await db.query(
+      `SELECT oi.item_id AS sku, MAX(oi.item_name) AS item_name,
+              SUM(oi.line_total) AS totalRevenue, SUM(oi.quantity) AS totalUnits
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+       ${whereClause}
+       GROUP BY oi.item_id
+       ORDER BY totalRevenue DESC
+       LIMIT ?`,
+      [...params, limitProducts]
+    );
+
+    if (topProducts.length === 0) {
+      const empty = { products: [] };
+      await this.setCache(cacheKey, empty);
+      return empty;
+    }
+
+    const skus = topProducts.map(p => p.sku);
+    const skuPlaceholders = skus.map(() => '?').join(',');
+    const platformExpr = this._orderPlatformExpr();
+    const platformWhere = [`oi.item_id IN (${skuPlaceholders})`, ...conditions].join(' AND ');
+
+    const [platformRows] = await db.query(
+      `SELECT sku, platform,
+              SUM(line_total) AS revenue, SUM(quantity) AS units,
+              COUNT(DISTINCT order_id) AS orders
+       FROM (
+         SELECT oi.item_id AS sku, ${platformExpr} AS platform,
+                oi.line_total, oi.quantity, oi.order_id
+         FROM order_items oi
+         JOIN orders o ON o.order_id = oi.order_id
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         WHERE ${platformWhere}
+       ) sub
+       GROUP BY sku, platform`,
+      [...skus, ...params]
+    );
+
+    const matrixBySku = {};
+    for (const row of platformRows) {
+      if (!matrixBySku[row.sku]) matrixBySku[row.sku] = {};
+      matrixBySku[row.sku][row.platform] = {
+        revenue: Number(row.revenue),
+        units: Number(row.units),
+        orders: Number(row.orders),
+      };
+    }
+
+    const allPlatforms = ['Meta', 'Google', 'Organic', 'Direct'];
+    const products = topProducts.map(p => {
+      const platforms = {};
+      const matrix = matrixBySku[p.sku] || {};
+      for (const pl of allPlatforms) {
+        platforms[pl] = matrix[pl] || { revenue: 0, units: 0, orders: 0 };
+      }
+      // Diğer ek platformlar (Email, Referral, Other vb.)
+      for (const key of Object.keys(matrix)) {
+        if (!allPlatforms.includes(key)) platforms[key] = matrix[key];
+      }
+      return {
+        sku: p.sku,
+        item_name: p.item_name,
+        totalRevenue: Number(p.totalRevenue),
+        totalUnits: Number(p.totalUnits),
+        platforms,
+      };
+    });
+
+    const result = { products };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
+
+  // D) Platform Genel Bakış — Meta/Google/Organic/Direct karşılaştırma + günlük trend
+  async getPlatformOverview(filters = {}) {
+    const cacheKey = `po:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    const { conditions, params } = this.buildOrderDateFilter(filters);
+    const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const platformExpr = this._orderPlatformExpr();
+
+    // Revenue & orders by platform (orders bazlı) — sql_mode=only_full_group_by için derived table
+    const [salesRows] = await db.query(
+      `SELECT platform,
+              SUM(order_revenue) AS revenue,
+              COUNT(*) AS orders,
+              SUM(product_count) AS units,
+              AVG(order_revenue) AS aov
+       FROM (
+         SELECT ${platformExpr} AS platform,
+                o.order_revenue, o.product_count
+         FROM orders o
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         ${whereClause}
+       ) sub
+       GROUP BY platform`,
+      params
+    );
+
+    // Spend, impressions, clicks (paid platformlar için)
+    const adsParams = [];
+    let adsDateClause = '';
+    if (filters.startDate) {
+      adsDateClause += " AND DATE_FORMAT(date_start, '%Y%m%d') >= ? ";
+      adsParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      adsDateClause += " AND DATE_FORMAT(date_start, '%Y%m%d') <= ? ";
+      adsParams.push(filters.endDate);
+    }
+    let googleDateClause = '';
+    const gParams = [];
+    if (filters.startDate) {
+      googleDateClause += " AND DATE_FORMAT(date, '%Y%m%d') >= ? ";
+      gParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      googleDateClause += " AND DATE_FORMAT(date, '%Y%m%d') <= ? ";
+      gParams.push(filters.endDate);
+    }
+
+    const [metaAds] = await db.query(
+      `SELECT SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks,
+              SUM(actions_purchase) AS adClaimedPurchases,
+              SUM(action_values_purchase) AS adClaimedRevenue
+       FROM meta_ads WHERE 1=1 ${adsDateClause}`,
+      adsParams
+    );
+    const [googleAds] = await db.query(
+      `SELECT SUM(cost_micros)/1000000 AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks,
+              SUM(conversions) AS adClaimedPurchases,
+              SUM(conversions_value) AS adClaimedRevenue
+       FROM google_ads WHERE 1=1 ${googleDateClause}`,
+      gParams
+    );
+
+    const adSpendByPlatform = {
+      Meta:    Number(metaAds[0].spend || 0),
+      Google:  Number(googleAds[0].spend || 0),
+      Organic: 0,
+      Direct:  0,
+    };
+    const adImpressionsByPlatform = {
+      Meta:    Number(metaAds[0].impressions || 0),
+      Google:  Number(googleAds[0].impressions || 0),
+    };
+    const adClicksByPlatform = {
+      Meta:    Number(metaAds[0].clicks || 0),
+      Google:  Number(googleAds[0].clicks || 0),
+    };
+
+    const platformsMap = {};
+    for (const row of salesRows) {
+      platformsMap[row.platform] = {
+        platform: row.platform,
+        revenue: Number(row.revenue || 0),
+        orders: Number(row.orders || 0),
+        units: Number(row.units || 0),
+        aov: Number(row.aov || 0),
+      };
+    }
+
+    // 4 ana platform garantili dönsün (boşsa da)
+    const corePlatforms = ['Meta', 'Google', 'Organic', 'Direct'];
+    const platforms = corePlatforms.map(name => {
+      const sales = platformsMap[name] || { platform: name, revenue: 0, orders: 0, units: 0, aov: 0 };
+      const adSpend = adSpendByPlatform[name] || 0;
+      return {
+        ...sales,
+        adSpend,
+        impressions: adImpressionsByPlatform[name] || 0,
+        clicks: adClicksByPlatform[name] || 0,
+        ctr: (adImpressionsByPlatform[name] || 0) > 0
+          ? (adClicksByPlatform[name] || 0) / adImpressionsByPlatform[name] : 0,
+        roas: adSpend > 0 ? sales.revenue / adSpend : null,
+      };
+    });
+    // 4 ana dışında çıkan platformlar (Email, Referral, Other vb.) ek olarak
+    for (const name of Object.keys(platformsMap)) {
+      if (!corePlatforms.includes(name)) {
+        platforms.push({
+          ...platformsMap[name],
+          adSpend: 0, impressions: 0, clicks: 0, ctr: 0, roas: null,
+        });
+      }
+    }
+
+    // Günlük trend (per platform, daily revenue) — sql_mode=only_full_group_by için derived table
+    const [trendRows] = await db.query(
+      `SELECT day, platform, SUM(revenue) AS revenue
+       FROM (
+         SELECT DATE(o.order_date) AS day,
+                ${platformExpr} AS platform,
+                o.order_revenue AS revenue
+         FROM orders o
+         LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+         ${whereClause}
+       ) sub
+       GROUP BY day, platform
+       ORDER BY day`,
+      params
+    );
+
+    const trendMap = {};
+    for (const row of trendRows) {
+      const dayStr = row.day instanceof Date
+        ? row.day.toISOString().slice(0, 10)
+        : String(row.day).slice(0, 10);
+      if (!trendMap[dayStr]) trendMap[dayStr] = { day: dayStr, Meta: 0, Google: 0, Organic: 0, Direct: 0 };
+      trendMap[dayStr][row.platform] = Number(row.revenue || 0);
+    }
+    const dailyTrend = Object.values(trendMap).sort((a, b) => a.day.localeCompare(b.day));
+
+    const result = { platforms, dailyTrend };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
 }
 
 module.exports = KpiService;

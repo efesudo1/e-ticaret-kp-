@@ -4,18 +4,13 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { FilterProvider } from './context/FilterContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 import Import from './pages/Import';
-import Traffic from './pages/Traffic';
-import Ads from './pages/Ads';
-import Sales from './pages/Sales';
-import Products from './pages/Products';
-import Campaigns from './pages/Campaigns';
 import Users from './pages/Users';
-import ExecutiveSummary from './pages/ExecutiveSummary';
-import Profitability from './pages/Profitability';
-import CustomerAnalysis from './pages/CustomerAnalysis';
-import MetricDetail from './pages/MetricDetail';
+import Overview from './pages/Overview';
+import CampaignsOverview from './pages/CampaignsOverview';
+import ProductsOverview from './pages/ProductsOverview';
+import PlatformsOverview from './pages/PlatformsOverview';
+import Reports from './pages/Reports';
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -36,22 +31,17 @@ function AppRoutes() {
           </FilterProvider>
         </ProtectedRoute>
       }>
-        <Route index element={<Dashboard />} />
-        <Route path="analytics/:metricType" element={<MetricDetail />} />
-        <Route path="executive" element={<ExecutiveSummary />} />
-        <Route path="traffic" element={<Traffic />} />
-        <Route path="ads" element={<Ads />} />
-        <Route path="sales" element={<Sales />} />
-        <Route path="profitability" element={<Profitability />} />
-        <Route path="products" element={<Products />} />
-        <Route path="campaigns" element={<Campaigns />} />
-        <Route path="customers" element={<CustomerAnalysis />} />
+        <Route index element={<Overview />} />
+        <Route path="campaigns" element={<CampaignsOverview />} />
+        <Route path="products" element={<ProductsOverview />} />
+        <Route path="platforms" element={<PlatformsOverview />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="import" element={<Import />} />
         <Route path="users" element={
           <ProtectedRoute adminOnly={true}>
             <Users />
           </ProtectedRoute>
         } />
-        <Route path="import" element={<Import />} />
       </Route>
     </Routes>
   );
@@ -78,4 +68,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
