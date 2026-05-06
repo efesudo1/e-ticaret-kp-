@@ -32,6 +32,11 @@ kpi_dashboard_backup.sql
 # Geçici dosyalar
 _temp_*.txt
 
+# Hassas notlar (parolalar, SSH bilgileri, vb.)
+DEPLOYMENT_NOTES.md
+SECRETS.md
+NOTES.md
+
 # Docker volumes (mount edilmiş klasörler)
 backend/uploads/
 backend/logs/
