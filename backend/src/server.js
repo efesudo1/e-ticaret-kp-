@@ -82,12 +82,19 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // API Routes
+const { authenticate } = require('./middleware/auth');
+const { requirePermission, requirePermissionForMutations } = require('./middleware/permissions');
+
 app.use('/api/auth', authRoutes);
-app.use('/api/import', importRoutes);
+// Import flow'a dokunmadan, sadece mount level'da permission middleware ile sar.
+// Viewer GET edebilir (sayfayı açabilir) ama POST/PUT/DELETE yapamaz.
+app.use('/api/import', authenticate, requirePermissionForMutations('import_data'), importRoutes);
 app.use('/api/kpi', kpiRoutes);
-app.use('/api/data', dataRoutes);
+// /api/data GET'leri zaten authenticate ister; mutating (DELETE clear) için permission koy
+app.use('/api/data', authenticate, requirePermissionForMutations('import_data'), dataRoutes);
 app.use('/api/filters', filterRoutes);
-app.use('/api/reports', reportRoutes);
+// Excel raporu sadece export_excel izni olanlar için
+app.use('/api/reports', authenticate, requirePermission('export_excel'), reportRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {

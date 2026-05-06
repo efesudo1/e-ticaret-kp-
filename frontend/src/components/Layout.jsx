@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import {
-  LayoutDashboard, Megaphone, Package, PieChart, Upload,
-  ChevronLeft, ChevronRight, LogOut, Users, FileText
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
+import { PAGE_PERMISSIONS, hasPermission } from '../lib/permissions';
 
-const navItems = [
-  { path: '/',           icon: LayoutDashboard, label: 'Genel Bakış',         exact: true },
-  { path: '/campaigns',  icon: Megaphone,       label: 'Kampanyalar' },
-  { path: '/products',   icon: Package,         label: 'Ürünler' },
-  { path: '/platforms',  icon: PieChart,        label: 'Platformlar' },
-  { path: '/reports',    icon: FileText,        label: 'Raporlar' },
-  { section: 'SİSTEM' },
-  { path: '/import',     icon: Upload,          label: 'Veri Import' },
-  { path: '/users',      icon: Users,           label: 'Kullanıcı Yönetimi', adminOnly: true },
+// Sidebar'da gösterilecek path'ler ve hangi gruba ait oldukları.
+const SIDEBAR_ORDER = [
+  { type: 'item',    permKey: 'view_overview' },
+  { type: 'item',    permKey: 'view_campaigns' },
+  { type: 'item',    permKey: 'view_products' },
+  { type: 'item',    permKey: 'view_platforms' },
+  { type: 'item',    permKey: 'view_reports' },
+  { type: 'section', label: 'SİSTEM',
+    visibleIf: (user) => hasPermission(user, 'import_data') || hasPermission(user, 'manage_users') },
+  { type: 'item',    permKey: 'import_data' },
+  { type: 'item',    permKey: 'manage_users' },
 ];
 
 export default function Layout() {
@@ -24,21 +24,45 @@ export default function Layout() {
   const navigate = useNavigate();
 
   const getPageTitle = () => {
-    const titles = {
-      '/':          'Genel Bakış',
-      '/campaigns': 'Kampanyalar',
-      '/products':  'Ürünler',
-      '/platforms': 'Platformlar',
-      '/reports':   'Raporlar',
-      '/import':    'Veri Import',
-      '/users':     'Kullanıcı Yönetimi'
-    };
-    return titles[location.pathname] || 'Genel Bakış';
+    if (location.pathname === '/profile') return 'Profilim';
+    const page = PAGE_PERMISSIONS.find(p => p.path === location.pathname);
+    return page?.label || 'Genel Bakış';
+  };
+
+  const renderNav = () => {
+    const elements = [];
+    SIDEBAR_ORDER.forEach((entry, idx) => {
+      if (entry.type === 'section') {
+        if (!entry.visibleIf || entry.visibleIf(user)) {
+          elements.push(
+            !collapsed ? (
+              <div key={`s${idx}`} className="nav-section-title">{entry.label}</div>
+            ) : <div key={`s${idx}`} style={{ height: 16 }} />
+          );
+        }
+      } else {
+        const page = PAGE_PERMISSIONS.find(p => p.key === entry.permKey);
+        if (!page || !page.path) return;
+        if (!hasPermission(user, page.key)) return;
+        const Icon = page.icon;
+        elements.push(
+          <NavLink
+            key={page.key}
+            to={page.path}
+            end={page.path === '/'}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Icon size={20} />
+            {!collapsed && <span>{page.label}</span>}
+          </NavLink>
+        );
+      }
+    });
+    return elements;
   };
 
   return (
     <div className="app-layout">
-      {/* Sidebar */}
       <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-logo">
           {collapsed ? (
@@ -49,26 +73,7 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map((item, i) => {
-            if (item.adminOnly && user?.role !== 'admin') return null;
-            if (item.section) {
-              return !collapsed ? (
-                <div key={i} className="nav-section-title">{item.section}</div>
-              ) : <div key={i} style={{ height: 16 }} />;
-            }
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.exact}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              >
-                <Icon size={20} />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            );
-          })}
+          {renderNav()}
         </nav>
 
         <div className="sidebar-footer">
@@ -78,17 +83,15 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className={`app-content ${collapsed ? 'collapsed' : ''}`}>
-        {/* Header */}
         <header className={`header ${collapsed ? 'collapsed' : ''}`}>
           <h2 className="header-title">{getPageTitle()}</h2>
           <div className="header-actions">
-            <div 
-              className="header-user" 
-              onClick={() => user?.role === 'admin' && navigate('/users')}
-              style={{ cursor: user?.role === 'admin' ? 'pointer' : 'default' }}
-              title={user?.role === 'admin' ? "Kullanıcı Yönetimine Git" : ""}
+            <div
+              className="header-user"
+              onClick={() => navigate('/profile')}
+              style={{ cursor: 'pointer' }}
+              title="Profilim — şifre değiştir, izinleri gör"
             >
               <div className="header-user-avatar">
                 {user?.full_name?.charAt(0) || 'U'}
@@ -104,7 +107,6 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="main-content">
           <Outlet />
         </main>
