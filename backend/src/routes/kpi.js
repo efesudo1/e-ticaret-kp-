@@ -367,6 +367,17 @@ router.get('/platform-overview', authenticate, async (req, res) => {
   }
 });
 
+router.get('/all-products', authenticate, async (req, res) => {
+  try {
+    const kpiService = new KpiService();
+    const data = await kpiService.getAllProducts(req.query);
+    res.json(data);
+  } catch (error) {
+    console.error('all-products error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
 
 

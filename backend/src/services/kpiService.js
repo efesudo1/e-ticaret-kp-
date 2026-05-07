@@ -2063,8 +2063,8 @@ class KpiService {
     const cached = await this.getFromCache(cacheKey);
     if (cached) return cached;
 
-    const topCampaigns = Math.min(parseInt(filters.topCampaigns) || 10, 100);
-    const limitPerCampaign = Math.min(parseInt(filters.limitPerCampaign) || 5, 20);
+    const topCampaigns = Math.min(parseInt(filters.topCampaigns) || 10, 200);
+    const limitPerCampaign = Math.min(parseInt(filters.limitPerCampaign) || 5, 1000);
     const direction = filters.direction === 'bottom' ? 'ASC' : 'DESC';
 
     const { conditions, params } = this.buildOrderDateFilter(filters);
@@ -2215,8 +2215,8 @@ class KpiService {
     const cached = await this.getFromCache(cacheKey);
     if (cached) return cached;
 
-    const limitProducts = Math.min(parseInt(filters.limitProducts) || 50, 200);
-    const limitCampaignsPerProduct = Math.min(parseInt(filters.limitCampaignsPerProduct) || 5, 20);
+    const limitProducts = Math.min(parseInt(filters.limitProducts) || 50, 1000);
+    const limitCampaignsPerProduct = Math.min(parseInt(filters.limitCampaignsPerProduct) || 5, 100);
     const sku = filters.sku || null;
 
     const { conditions, params } = this.buildOrderDateFilter(filters);
@@ -2558,6 +2558,110 @@ class KpiService {
     const dailyTrend = Object.values(trendMap).sort((a, b) => a.day.localeCompare(b.day));
 
     const result = { platforms, dailyTrend };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
+
+  // E) Veritabanındaki TÜM ürünler (satışı olmasa bile) — products + sale aggregation
+  async getAllProducts(filters = {}) {
+    const cacheKey = `ap:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    // products tablosundan tüm aktif ürünler + LEFT JOIN ile satış metrikleri
+    const conditions = [];
+    const params = [];
+
+    // Tarih + diğer filtrelere göre satış sorgu için kullanılacak (orders'a uygulanır)
+    let salesDateClause = '';
+    const salesParams = [];
+    if (filters.startDate) {
+      salesDateClause += " AND DATE_FORMAT(o.order_date, '%Y%m%d') >= ?";
+      salesParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      salesDateClause += " AND DATE_FORMAT(o.order_date, '%Y%m%d') <= ?";
+      salesParams.push(filters.endDate);
+    }
+    if (filters.platform && filters.platform !== 'all') {
+      salesDateClause += " AND c.platform = ?";
+      salesParams.push(filters.platform);
+    }
+    if (filters.channel) {
+      salesDateClause += " AND o.channel = ?";
+      salesParams.push(filters.channel);
+    }
+    if (filters.device) {
+      salesDateClause += " AND o.device = ?";
+      salesParams.push(filters.device);
+    }
+
+    // Ürün filtreleri (products tablosuna)
+    const productConds = ['p.is_active = 1'];
+    if (filters.brand) {
+      productConds.push('p.brand = ?');
+      params.push(filters.brand);
+    }
+    if (filters.category) {
+      productConds.push('p.category = ?');
+      params.push(filters.category);
+    }
+    const productWhere = 'WHERE ' + productConds.join(' AND ');
+
+    const sql = `
+      SELECT
+        p.sku,
+        p.product_name AS item_name,
+        p.brand AS item_brand,
+        p.category AS item_category,
+        p.sub_category,
+        p.gender,
+        p.price,
+        p.cost_price,
+        p.stock_quantity,
+        COALESCE(s.totalRevenue, 0) AS totalRevenue,
+        COALESCE(s.totalUnits, 0) AS totalUnits,
+        COALESCE(s.orderCount, 0) AS orderCount
+      FROM products p
+      LEFT JOIN (
+        SELECT
+          oi.item_id AS sku,
+          SUM(oi.line_total) AS totalRevenue,
+          SUM(oi.quantity) AS totalUnits,
+          COUNT(DISTINCT oi.order_id) AS orderCount
+        FROM order_items oi
+        JOIN orders o ON o.order_id = oi.order_id
+        LEFT JOIN campaigns c ON c.campaign_name = o.campaign_name
+        WHERE 1=1 ${salesDateClause}
+        GROUP BY oi.item_id
+      ) s ON s.sku = p.sku
+      ${productWhere}
+      ORDER BY totalRevenue DESC, p.sku ASC
+    `;
+    // Param order: salesParams (subquery) önce, sonra outer productConds params
+    const allParams = [...salesParams, ...params];
+    const [rows] = await db.query(sql, allParams);
+
+    const products = rows.map(r => ({
+      sku: r.sku,
+      item_name: r.item_name,
+      item_brand: r.item_brand,
+      item_category: r.item_category,
+      sub_category: r.sub_category,
+      gender: r.gender,
+      price: Number(r.price || 0),
+      cost_price: Number(r.cost_price || 0),
+      stock_quantity: Number(r.stock_quantity || 0),
+      totalRevenue: Number(r.totalRevenue || 0),
+      totalUnits: Number(r.totalUnits || 0),
+      orderCount: Number(r.orderCount || 0),
+      // Margin (kar marjı yüzdesi) — fiyat > 0 ise
+      marginPercent: r.price > 0
+        ? Math.round(((Number(r.price) - Number(r.cost_price || 0)) / Number(r.price)) * 100)
+        : 0,
+    }));
+
+    const result = { products, total: products.length };
     await this.setCache(cacheKey, result);
     return result;
   }

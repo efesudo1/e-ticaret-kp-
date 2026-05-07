@@ -91,7 +91,13 @@
       "Bash(grep -v \"^$\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/health)",
       "Bash(curl -s -o /dev/null -w \"DataTable.jsx: %{http_code}\\\\n\" http://localhost:5173/src/components/DataTable.jsx)",
-      "Bash(curl -s -o /dev/null -w \"Users.jsx: %{http_code}\\\\n\" http://localhost:5173/src/pages/Users.jsx)"
+      "Bash(curl -s -o /dev/null -w \"Users.jsx: %{http_code}\\\\n\" http://localhost:5173/src/pages/Users.jsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://ahmetefefinalproject.tech/api/health)",
+      "Bash(node -c backend/src/services/kpiService.js)",
+      "Bash(node -c backend/src/routes/kpi.js)",
+      "Bash(node -c backend/src/routes/reports.js)",
+      "Bash(curl -s -o /dev/null -w \"PlatformsOverview: %{http_code}\\\\n\" http://localhost:5173/src/pages/PlatformsOverview.jsx)",
+      "Bash(curl -s -o /dev/null -w \"ProductsOverview: %{http_code}\\\\n\" http://localhost:5173/src/pages/ProductsOverview.jsx)"
     ],
     "additionalDirectories": [
       "/Users/efe49/Desktop/projects/e ticaret kğpı dashboard"

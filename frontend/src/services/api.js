@@ -83,6 +83,7 @@ export const kpiAPI = {
   productCampaignBreakdown: (params) => api.get('/kpi/product-campaign-breakdown', { params }),
   productPlatformBreakdown: (params) => api.get('/kpi/product-platform-breakdown', { params }),
   platformOverview:         (params) => api.get('/kpi/platform-overview',          { params }),
+  allProducts:              (params) => api.get('/kpi/all-products',               { params }),
 };
 
 // Data
@@ -103,6 +104,8 @@ export const reportsAPI = {
   downloadExcel:                 (params) => api.get('/reports/excel',                       { params, responseType: 'blob' }),
   downloadCampaignsExcel:        (params) => api.get('/reports/excel/campaigns',             { params, responseType: 'blob' }),
   downloadCampaignComparisonExcel: (params) => api.get('/reports/excel/campaign-comparison', { params, responseType: 'blob' }),
+  downloadPlatformDetailExcel:   (params) => api.get('/reports/excel/platform-detail',       { params, responseType: 'blob' }),
+  downloadProductsExcel:         (params) => api.get('/reports/excel/products',              { params, responseType: 'blob' }),
 };
 
 // Health

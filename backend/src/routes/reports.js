@@ -446,4 +446,140 @@ router.get('/excel/campaign-comparison', authenticate, async (req, res) => {
   }
 });
 
+// ============================================================
+// /api/reports/excel/platform-detail
+// Platform odaklı drill-down: bir platforma ait kampanyalar + her kampanyanın ürünleri
+// Query: platform (Meta/Google/Organic/Direct), startDate, endDate, channel, device
+// Eğer campaign param verilirse o kampanyanın ürünleri tek sayfada gelir.
+// ============================================================
+router.get('/excel/platform-detail', authenticate, async (req, res) => {
+  try {
+    const platform = (req.query.platform || 'all').toLowerCase();
+    const filters = {
+      startDate: req.query.startDate, endDate: req.query.endDate,
+      channel: req.query.channel, campaign: req.query.campaign,
+      device: req.query.device, city: req.query.city,
+      brand: req.query.brand, category: req.query.category,
+      platform: platform === 'all' ? undefined : platform, // backend filter param: meta/google
+    };
+
+    const kpi = new KpiService();
+
+    // Eğer kampanya verilmişse: o kampanya için tüm ürünler
+    // Aksi halde: platform bazlı kampanyalar + her birinin top 10 ürünü
+    const cb = await kpi.getCampaignProductBreakdown({
+      ...filters,
+      topCampaigns: 200,
+      limitPerCampaign: req.query.campaign ? 1000 : 10,
+    });
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Kampanya Listesi
+    const kampanyalar = (cb.campaigns || []).map(c => ({
+      'Kampanya Adı': c.campaign_name,
+      'Platform': (c.platform || '').toUpperCase(),
+      'Hedef': c.objective || '',
+      'Reklam Harcama (₺)': fmtRound(c.spend),
+      'Ciro (₺)': fmtRound(c.totalRevenue),
+      'Net Kâr (₺)': fmtRound((c.totalRevenue || 0) - (c.spend || 0)),
+      'ROAS': c.roas != null ? Number(c.roas.toFixed(2)) : '',
+      'Sipariş': fmtNum(c.orderCount),
+      'Adet': fmtNum(c.totalUnits),
+      'Ürün Başına Ciro (₺)': c.totalUnits > 0 ? Math.round(c.totalRevenue / c.totalUnits) : 0,
+    }));
+    const ws1 = XLSX.utils.json_to_sheet(kampanyalar);
+    setColumnWidths(ws1, [38, 10, 14, 18, 16, 14, 8, 12, 12, 22]);
+    const platformLabel = platform === 'all' ? 'Tüm Platformlar' :
+                          platform === 'meta' ? 'Meta' :
+                          platform === 'google' ? 'Google' : platform;
+    XLSX.utils.book_append_sheet(wb, ws1, `${platformLabel} Kampanyalar`);
+
+    // Sheet 2: Kampanya × Ürün
+    const urunler = [];
+    (cb.campaigns || []).forEach(c => {
+      (c.topProducts || []).forEach(p => {
+        urunler.push({
+          'Kampanya': c.campaign_name,
+          'Sıra': p.rank,
+          'Ürün SKU': p.sku,
+          'Ürün Adı': p.item_name,
+          'Marka': p.item_brand,
+          'Kategori': p.item_category,
+          'Adet': fmtNum(p.units_sold),
+          'Ciro (₺)': fmtRound(p.revenue),
+        });
+      });
+    });
+    const ws2 = XLSX.utils.json_to_sheet(urunler);
+    setColumnWidths(ws2, [38, 6, 18, 42, 14, 14, 10, 14]);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Ürünler');
+
+    // Sheet 3: Filtre Bilgisi
+    const meta = [
+      { 'Alan': 'Rapor Tarihi', 'Değer': new Date().toLocaleString('tr-TR') },
+      { 'Alan': 'Platform', 'Değer': platformLabel },
+      { 'Alan': 'Tarih Aralığı', 'Değer': `${filters.startDate || '(tümü)'} - ${filters.endDate || '(tümü)'}` },
+      { 'Alan': 'Kanal', 'Değer': filters.channel || '(tümü)' },
+      { 'Alan': 'Cihaz', 'Değer': filters.device || '(tümü)' },
+      { 'Alan': 'Kampanya filtresi', 'Değer': filters.campaign || '(tümü)' },
+      { 'Alan': 'Toplam Kampanya', 'Değer': (cb.campaigns || []).length },
+      { 'Alan': 'Toplam Ürün Satırı', 'Değer': urunler.length },
+    ];
+    const ws3 = XLSX.utils.json_to_sheet(meta);
+    setColumnWidths(ws3, [30, 50]);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Rapor Bilgisi');
+
+    const dateSuffix = (filters.startDate || '') + (filters.endDate ? '_' + filters.endDate : '');
+    const safe = (s) => String(s).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+    const filename = `${safe(platformLabel)}_detay${dateSuffix ? '_' + dateSuffix : ''}.xlsx`;
+    sendXlsx(res, wb, filename);
+  } catch (error) {
+    console.error('reports/excel/platform-detail error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// /api/reports/excel/products  — DB'deki TÜM ürünler + satış özeti
+// ============================================================
+router.get('/excel/products', authenticate, async (req, res) => {
+  try {
+    const filters = {
+      startDate: req.query.startDate, endDate: req.query.endDate,
+      channel: req.query.channel, device: req.query.device,
+      brand: req.query.brand, category: req.query.category,
+      platform: req.query.platform === 'all' ? undefined : req.query.platform,
+    };
+    const kpi = new KpiService();
+    const data = await kpi.getAllProducts(filters);
+
+    const wb = XLSX.utils.book_new();
+    const rows = (data.products || []).map(p => ({
+      'SKU': p.sku,
+      'Ürün Adı': p.item_name,
+      'Marka': p.item_brand,
+      'Kategori': p.item_category,
+      'Alt Kategori': p.sub_category || '',
+      'Cinsiyet': p.gender || '',
+      'Fiyat (₺)': fmtRound(p.price),
+      'Maliyet (₺)': fmtRound(p.cost_price),
+      'Marj (%)': p.marginPercent,
+      'Stok Adedi': fmtNum(p.stock_quantity),
+      'Toplam Satış Adedi': fmtNum(p.totalUnits),
+      'Toplam Ciro (₺)': fmtRound(p.totalRevenue),
+      'Sipariş Sayısı': fmtNum(p.orderCount),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    setColumnWidths(ws, [18, 42, 14, 14, 16, 10, 12, 12, 8, 10, 16, 16, 12]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Ürünler');
+
+    const dateSuffix = (filters.startDate || '') + (filters.endDate ? '_' + filters.endDate : '');
+    sendXlsx(res, wb, `tum_urunler${dateSuffix ? '_' + dateSuffix : ''}.xlsx`);
+  } catch (error) {
+    console.error('reports/excel/products error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
