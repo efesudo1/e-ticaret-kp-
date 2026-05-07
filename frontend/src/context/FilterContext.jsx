@@ -29,41 +29,38 @@ const computePresetFromAnchor = (preset, anchorDate) => {
 const DEFAULT_PRESET = '30d';
 
 export function FilterProvider({ children }) {
-  // İlk açılışta 'all' (boş tarih) — veri olmayan aralığa düşmesin diye.
-  // Backend'den anchor (data maxDate) gelince otomatik 30 güne kayar.
+  const todayInit = computePresetFromAnchor(DEFAULT_PRESET, new Date());
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
+    startDate: todayInit.startDate,
+    endDate: todayInit.endDate,
     channel: '',
     campaign: '',
     device: '',
     city: '',
     brand: '',
     category: '',
-    preset: 'all',
+    preset: DEFAULT_PRESET,
     platform: 'all',  // 'all' | 'meta' | 'google'
   });
-  const [anchorDate, setAnchorDate] = useState(null);
+  const [anchorDate, setAnchorDate] = useState(new Date());
 
-  // Backend'den veri tarih aralığını çek, anchor olarak max'ı al ve 30 güne kaydır.
+  // Backend'den veri tarih aralığını çek, default'u onun maxDate'ine göre kaydır.
+  // Veri eski olabilir (örn. 2024-10 / 2025-03), bugünden gerisi boş çıkar.
   useEffect(() => {
     let cancelled = false;
     filterAPI.options()
       .then(({ data }) => {
-        if (cancelled) return;
         const max = data?.dateRange?.maxDate;
-        if (!max) return;
+        if (!max || cancelled) return;
+        // max formatı YYYYMMDD veya YYYY-MM-DD olabilir
         const cleaned = String(max).replace(/-/g, '');
         const parsed = parseYYYYMMDD(cleaned);
         if (!parsed) return;
         setAnchorDate(parsed);
         const range = computePresetFromAnchor(DEFAULT_PRESET, parsed);
-        // anchor geldikten sonra otomatik 30 güne kay (sadece kullanıcı henüz manuel değiştirmemişse)
-        setFilters(prev => prev.preset === 'all' && !prev.startDate
-          ? { ...prev, startDate: range.startDate, endDate: range.endDate, preset: DEFAULT_PRESET }
-          : prev);
+        setFilters(prev => ({ ...prev, startDate: range.startDate, endDate: range.endDate }));
       })
-      .catch(() => { /* sessizce yut, default 'all' kalır */ });
+      .catch(() => { /* sessizce yut, default kalır */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -81,9 +78,7 @@ export function FilterProvider({ children }) {
       setFilters(prev => ({ ...prev, preset: 'custom' }));
       return;
     }
-    // anchor henüz gelmemişse bugünü kullan
-    const useAnchor = anchorDate || new Date();
-    const range = computePresetFromAnchor(preset, useAnchor);
+    const range = computePresetFromAnchor(preset, anchorDate);
     setFilters(prev => ({
       ...prev,
       startDate: range.startDate,
@@ -93,8 +88,7 @@ export function FilterProvider({ children }) {
   }, [anchorDate]);
 
   const resetFilters = useCallback(() => {
-    const useAnchor = anchorDate || new Date();
-    const range = computePresetFromAnchor(DEFAULT_PRESET, useAnchor);
+    const range = computePresetFromAnchor(DEFAULT_PRESET, anchorDate);
     setFilters({
       startDate: range.startDate,
       endDate: range.endDate,
@@ -104,7 +98,7 @@ export function FilterProvider({ children }) {
       city: '',
       brand: '',
       category: '',
-      preset: anchorDate ? DEFAULT_PRESET : 'all',
+      preset: DEFAULT_PRESET,
       platform: 'all',
     });
   }, [anchorDate]);
