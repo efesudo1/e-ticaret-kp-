@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
-  UserPlus, Trash2, UserX, UserCheck, Calendar, Clock, Search, X, Plus,
+  UserPlus, Trash2, UserX, UserCheck, Calendar, Clock, X, Plus,
   Edit3, Shield, Settings,
 } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { PAGE_PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from '../lib/permissions';
+import DataTable from '../components/DataTable';
 
 const ROLES = [
   { key: 'viewer',    label: 'Viewer (Sadece İzleyici)',    desc: 'Tüm panelleri görür, indirme/import yapamaz' },
@@ -21,7 +22,6 @@ const initialFormData = (role = 'viewer', customPermissions = null) => ({
 export default function Users() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState(initialFormData());
@@ -115,11 +115,6 @@ export default function Users() {
     }
   };
 
-  const filtered = useMemo(() => users.filter(u =>
-    u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  ), [users, search]);
-
   const groupedPerms = useMemo(() => {
     const groups = {};
     for (const p of PAGE_PERMISSIONS) {
@@ -129,90 +124,93 @@ export default function Users() {
     return groups;
   }, []);
 
+  const columns = useMemo(() => [
+    {
+      key: 'full_name', label: 'Ad Soyad', sortable: true,
+      render: (u) => <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.full_name}</span>,
+    },
+    {
+      key: 'email', label: 'E-posta', sortable: true,
+      render: (u) => <span style={{ color: 'var(--text-muted)' }}>{u.email}</span>,
+    },
+    {
+      key: 'role', label: 'Rol', sortable: true,
+      render: (u) => (
+        <span style={{
+          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5,
+          background: u.role === 'admin' ? 'rgba(227,6,19,.15)' : u.role === 'marketing' ? 'rgba(59,130,246,.15)' : 'rgba(34,197,94,.15)',
+          color:      u.role === 'admin' ? 'var(--accent-red)' : u.role === 'marketing' ? 'var(--accent-blue)' : 'var(--accent-green)',
+        }}>{u.role}</span>
+      ),
+    },
+    {
+      key: 'is_active', label: 'Durum', sortable: true,
+      render: (u) => (
+        <span style={{ color: u.is_active ? 'var(--accent-green)' : 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
+          {u.is_active ? '● Aktif' : '○ Pasif'}
+        </span>
+      ),
+    },
+    {
+      key: 'last_login', label: 'Son Giriş', sortable: true,
+      sortFn: (a, b) => {
+        const av = a.last_login ? new Date(a.last_login).getTime() : 0;
+        const bv = b.last_login ? new Date(b.last_login).getTime() : 0;
+        return av - bv;
+      },
+      render: (u) => (
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />
+          {u.last_login ? new Date(u.last_login).toLocaleDateString('tr-TR') : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'created_at', label: 'Kayıt', sortable: true,
+      sortFn: (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      render: (u) => (
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          <Calendar size={11} style={{ display: 'inline', marginRight: 4 }} />
+          {new Date(u.created_at).toLocaleDateString('tr-TR')}
+        </span>
+      ),
+    },
+    {
+      key: 'actions', label: 'İşlemler', sortable: false, align: 'right',
+      render: (u) => (
+        <span onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+          <button className="btn-icon-mini" onClick={() => openEdit(u)} title="Düzenle"><Edit3 size={14} /></button>
+          <button className="btn-icon-mini" onClick={() => toggleActive(u)} title={u.is_active ? 'Pasif yap' : 'Aktif yap'}>
+            {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
+          </button>
+          <button className="btn-icon-mini btn-icon-danger" onClick={() => handleDelete(u.id)} title="Sil"><Trash2 size={14} /></button>
+        </span>
+      ),
+    },
+  ], []);
+
   return (
     <div className="page-container animate-fade-in">
-      {/* Üst arama */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <Search size={16} style={{ position: 'absolute', left: 14, top: 11, color: 'var(--text-muted)' }} />
-            <input
-              type="text" placeholder="Kullanıcı ara (ad / e-posta)..."
-              value={search} onChange={e => setSearch(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 14px 10px 40px',
-                background: 'var(--bg-glass)', border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)', color: 'var(--text-primary)',
-                fontFamily: 'inherit', fontSize: 13, outline: 'none',
-              }}
-            />
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{filtered.length} kullanıcı</span>
-          <button className="btn-excel-mini" style={{ background: 'rgba(227,6,19,.12)', color: 'var(--accent-red)', borderColor: 'rgba(227,6,19,.3)' }} onClick={openCreate}>
-            <Plus size={13} /> Yeni Kullanıcı
-          </button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button className="btn-primary-mini" onClick={openCreate}>
+          <Plus size={14} /> Yeni Kullanıcı
+        </button>
       </div>
 
-      {/* Kullanıcı tablosu */}
-      <div className="card">
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Ad Soyad</th>
-                  <th>E-posta</th>
-                  <th>Rol</th>
-                  <th>Durum</th>
-                  <th>Son Giriş</th>
-                  <th>Kayıt</th>
-                  <th style={{ textAlign: 'right' }}>İşlemler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Yükleniyor...</td></tr>
-                ) : filtered.length ? filtered.map(u => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.full_name}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{u.email}</td>
-                    <td>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5,
-                        background: u.role === 'admin' ? 'rgba(227,6,19,.15)' : u.role === 'marketing' ? 'rgba(59,130,246,.15)' : 'rgba(34,197,94,.15)',
-                        color:      u.role === 'admin' ? 'var(--accent-red)' : u.role === 'marketing' ? 'var(--accent-blue)' : 'var(--accent-green)',
-                      }}>{u.role}</span>
-                    </td>
-                    <td>
-                      <span style={{ color: u.is_active ? 'var(--accent-green)' : 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
-                        {u.is_active ? '● Aktif' : '○ Pasif'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />
-                      {u.last_login ? new Date(u.last_login).toLocaleDateString('tr-TR') : '—'}
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      <Calendar size={11} style={{ display: 'inline', marginRight: 4 }} />
-                      {new Date(u.created_at).toLocaleDateString('tr-TR')}
-                    </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn-icon-mini" onClick={() => openEdit(u)} title="Düzenle"><Edit3 size={14} /></button>
-                      <button className="btn-icon-mini" onClick={() => toggleActive(u)} title={u.is_active ? 'Pasif yap' : 'Aktif yap'}>
-                        {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
-                      </button>
-                      <button className="btn-icon-mini btn-icon-danger" onClick={() => handleDelete(u.id)} title="Sil"><Trash2 size={14} /></button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Kullanıcı bulunamadı</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      {loading ? (
+        <div className="card"><div className="card-body" style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+          Yükleniyor...
+        </div></div>
+      ) : (
+        <DataTable
+          rows={users}
+          columns={columns}
+          searchable
+          searchPlaceholder="Kullanıcı ara (ad, e-posta, rol)..."
+          defaultSort={{ key: 'created_at', dir: 'desc' }}
+          emptyMessage="Henüz kullanıcı yok"
+        />
+      )}
 
       {/* Modal */}
       {showModal && (

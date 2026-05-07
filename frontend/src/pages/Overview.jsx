@@ -4,6 +4,7 @@ import { DollarSign, ShoppingCart, TrendingUp, Tag } from 'lucide-react';
 import { useFilters } from '../context/FilterContext';
 import { kpiAPI } from '../services/api';
 import FilterBar from '../components/FilterBar';
+import DataTable from '../components/DataTable';
 
 const fmtTL = (n) => '₺' + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
 const fmtNum = (n) => Number(n || 0).toLocaleString('tr-TR');
@@ -201,53 +202,54 @@ export default function Overview() {
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">En İyi 5 Kampanya</div>
+          <div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              En İyi 5 Kampanya
             </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              <div className="data-table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Kampanya</th>
-                      <th>Platform</th>
-                      <th style={{ textAlign: 'right' }}>Ciro</th>
-                      <th style={{ textAlign: 'right' }}>Spend</th>
-                      <th style={{ textAlign: 'right' }}>ROAS</th>
-                      <th>En Çok Satan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.campaigns?.campaigns?.length ? data.campaigns.campaigns.map(c => (
-                      <tr key={c.campaign_name}>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.campaign_name}</td>
-                        <td>
-                          {c.platform && (
-                            <span className="badge" style={{
-                              padding: '3px 10px', borderRadius: 999, fontSize: 11,
-                              background: c.platform === 'meta' ? 'rgba(24,119,242,.15)' : 'rgba(251,188,5,.15)',
-                              color: c.platform === 'meta' ? '#1877f2' : '#fbbc05',
-                              textTransform: 'uppercase', fontWeight: 600,
-                            }}>{c.platform}</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right', color: 'var(--accent-green)', fontWeight: 600 }}>{fmtTL(c.totalRevenue)}</td>
-                        <td style={{ textAlign: 'right' }}>{fmtTL(c.spend)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtX(c.roas)}</td>
-                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {c.topProducts?.[0]?.item_name || '—'}
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>
-                        Bu tarih aralığında kampanya verisi yok.
-                      </td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              rows={data.campaigns?.campaigns || []}
+              columns={[
+                {
+                  key: 'campaign_name', label: 'Kampanya', sortable: true,
+                  render: (c) => <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.campaign_name}</span>,
+                },
+                {
+                  key: 'platform', label: 'Platform', sortable: true,
+                  render: (c) => c.platform ? (
+                    <span style={{
+                      padding: '3px 10px', borderRadius: 999, fontSize: 11,
+                      background: c.platform === 'meta' ? 'rgba(24,119,242,.15)' : 'rgba(251,188,5,.15)',
+                      color: c.platform === 'meta' ? '#1877f2' : '#fbbc05',
+                      textTransform: 'uppercase', fontWeight: 600,
+                    }}>{c.platform}</span>
+                  ) : '—',
+                },
+                {
+                  key: 'totalRevenue', label: 'Ciro', sortable: true, align: 'right',
+                  render: (c) => <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{fmtTL(c.totalRevenue)}</span>,
+                },
+                { key: 'spend', label: 'Spend', sortable: true, align: 'right', format: (v) => fmtTL(v) },
+                {
+                  key: 'roas', label: 'ROAS', sortable: true, align: 'right',
+                  render: (c) => <span style={{ fontWeight: 600 }}>{fmtX(c.roas)}</span>,
+                },
+                {
+                  key: 'topProductName', label: 'En Çok Satan', sortable: true,
+                  sortFn: (a, b) => {
+                    const an = a.topProducts?.[0]?.item_name || '';
+                    const bn = b.topProducts?.[0]?.item_name || '';
+                    return an.localeCompare(bn, 'tr');
+                  },
+                  render: (c) => <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.topProducts?.[0]?.item_name || '—'}</span>,
+                },
+              ]}
+              searchable
+              searchPlaceholder="Kampanyalar arasında ara..."
+              defaultSort={{ key: 'totalRevenue', dir: 'desc' }}
+              emptyMessage="Bu tarih aralığında kampanya verisi yok."
+              rowKey={(c) => c.campaign_name}
+              compact
+            />
           </div>
         </>
       )}
