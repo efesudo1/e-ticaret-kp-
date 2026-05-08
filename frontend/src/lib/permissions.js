@@ -3,7 +3,7 @@
 
 import {
   LayoutDashboard, Megaphone, Package, PieChart, FileText,
-  Upload, Users, Download,
+  Upload, Users, Download, MessageCircle,
 } from 'lucide-react';
 
 // Sidebar / route ile eşleşen permission'lar.
@@ -17,6 +17,7 @@ export const PAGE_PERMISSIONS = [
   { key: 'export_excel',   path: null,          icon: Download,        label: 'Excel İndirme',       group: 'Aksiyon' },
   { key: 'import_data',    path: '/import',     icon: Upload,          label: 'Veri Import',         group: 'Aksiyon' },
   { key: 'manage_users',   path: '/users',      icon: Users,           label: 'Kullanıcı Yönetimi',  group: 'Yönetim' },
+  { key: 'use_chatbot',    path: null,          icon: MessageCircle,   label: 'AI Asistan (Chatbot)', group: 'Aksiyon' },
 ];
 
 export const PERMISSION_KEYS = PAGE_PERMISSIONS.map(p => p.key);
@@ -25,17 +26,17 @@ export const DEFAULT_PERMISSIONS_BY_ROLE = {
   admin: {
     view_overview: true, view_campaigns: true, view_products: true,
     view_platforms: true, view_reports: true,
-    export_excel: true, import_data: true, manage_users: true,
+    export_excel: true, import_data: true, manage_users: true, use_chatbot: true,
   },
   marketing: {
     view_overview: true, view_campaigns: true, view_products: true,
     view_platforms: true, view_reports: true,
-    export_excel: true, import_data: true, manage_users: false,
+    export_excel: true, import_data: true, manage_users: false, use_chatbot: true,
   },
   viewer: {
     view_overview: true, view_campaigns: true, view_products: true,
     view_platforms: true, view_reports: true,
-    export_excel: false, import_data: false, manage_users: false,
+    export_excel: false, import_data: false, manage_users: false, use_chatbot: true,
   },
 };
 

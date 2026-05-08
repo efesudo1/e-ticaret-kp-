@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
 import { PAGE_PERMISSIONS, hasPermission } from '../lib/permissions';
+import ChatWidget from './ChatWidget';
 
 // Sidebar'da gösterilecek path'ler ve hangi gruba ait oldukları.
 const SIDEBAR_ORDER = [
@@ -111,6 +112,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <ChatWidget />
     </div>
   );
 }

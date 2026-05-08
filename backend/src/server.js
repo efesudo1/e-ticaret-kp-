@@ -20,6 +20,7 @@ const kpiRoutes = require('./routes/kpi');
 const dataRoutes = require('./routes/data');
 const filterRoutes = require('./routes/filters');
 const reportRoutes = require('./routes/reports');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -95,6 +96,8 @@ app.use('/api/data', authenticate, requirePermissionForMutations('import_data'),
 app.use('/api/filters', filterRoutes);
 // Excel raporu sadece export_excel izni olanlar için
 app.use('/api/reports', authenticate, requirePermission('export_excel'), reportRoutes);
+// Chatbot
+app.use('/api/chat', chatRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {

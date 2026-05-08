@@ -108,7 +108,14 @@
       "Bash(curl -s -o /dev/null -w \"Overview: %{http_code}\\\\n\" http://localhost:5173/src/pages/Overview.jsx)",
       "Bash(curl -s -o /dev/null -w \"Campaigns: %{http_code}\\\\n\" http://localhost:5173/src/pages/CampaignsOverview.jsx)",
       "Bash(curl -s -o /dev/null -w \"Products: %{http_code}\\\\n\" http://localhost:5173/src/pages/ProductsOverview.jsx)",
-      "Bash(curl -s -o /dev/null -w \"Platforms: %{http_code}\\\\n\" http://localhost:5173/src/pages/PlatformsOverview.jsx)"
+      "Bash(curl -s -o /dev/null -w \"Platforms: %{http_code}\\\\n\" http://localhost:5173/src/pages/PlatformsOverview.jsx)",
+      "Bash(sed -i '' 's|^GEMINI_API_KEY=.*|GEMINI_API_KEY=AIzaSyCFiOvmbTtuutOntaVOGHSdwIToWHjVb3k|' backend/.env)",
+      "Bash(sed -i '' 's|JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}|JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}\\\\n GEMINI_API_KEY: ${GEMINI_API_KEY}|' docker-compose.production.yml)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const {GoogleGenAI} = require\\('@google/genai'\\); console.log\\('✅ SDK yüklü, versiyon OK'\\);\")",
+      "Bash(curl -s \"https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyCFiOvmbTtuutOntaVOGHSdwIToWHjVb3k\")",
+      "Bash(curl -s -o /dev/null -w \"ChatWidget: %{http_code}\\\\n\" http://localhost:5173/src/components/ChatWidget.jsx)",
+      "Bash(curl -s -o /dev/null -w \"Layout: %{http_code}\\\\n\" http://localhost:5173/src/components/Layout.jsx)"
     ],
     "additionalDirectories": [
       "/Users/efe49/Desktop/projects/e ticaret kğpı dashboard"

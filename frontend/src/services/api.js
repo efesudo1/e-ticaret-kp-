@@ -108,6 +108,11 @@ export const reportsAPI = {
   downloadProductsExcel:         (params) => api.get('/reports/excel/products',              { params, responseType: 'blob' }),
 };
 
+// Chatbot
+export const chatAPI = {
+  ask: (message, history) => api.post('/chat', { message, history }),
+};
+
 // Health
 export const healthAPI = {
   check: () => api.get('/health'),

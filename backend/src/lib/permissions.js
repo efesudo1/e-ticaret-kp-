@@ -12,6 +12,7 @@ const PERMISSION_KEYS = [
   'export_excel',
   'import_data',
   'manage_users',
+  'use_chatbot',
 ];
 
 // Rol bazlı varsayılanlar — kullanıcının permissions kolonu NULL ise bunlar uygulanır.
@@ -25,6 +26,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     export_excel: true,
     import_data: true,
     manage_users: true,
+    use_chatbot: true,
   },
   marketing: {
     view_overview: true,
@@ -35,6 +37,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     export_excel: true,
     import_data: true,
     manage_users: false,
+    use_chatbot: true,
   },
   viewer: {
     view_overview: true,
@@ -45,6 +48,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     export_excel: false,
     import_data: false,
     manage_users: false,
+    use_chatbot: true,
   },
 };
 
