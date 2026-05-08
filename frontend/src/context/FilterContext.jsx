@@ -87,6 +87,20 @@ export function FilterProvider({ children }) {
     }));
   }, [anchorDate]);
 
+  // Belirli bir ayın 1'i ile son günü arasını filtreye uygula
+  // year: 4 hane, monthIndex: 0-11
+  const applyMonth = useCallback((year, monthIndex) => {
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 0); // ayın son günü
+    const fmt = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    setFilters(prev => ({
+      ...prev,
+      startDate: fmt(start),
+      endDate: fmt(end),
+      preset: `month-${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+    }));
+  }, []);
+
   const resetFilters = useCallback(() => {
     const range = computePresetFromAnchor(DEFAULT_PRESET, anchorDate);
     setFilters({
@@ -108,7 +122,7 @@ export function FilterProvider({ children }) {
 
   return (
     <FilterContext.Provider value={{
-      filters, updateFilter, applyPreset, resetFilters, activeFilters, anchorDate
+      filters, updateFilter, applyPreset, applyMonth, resetFilters, activeFilters, anchorDate
     }}>
       {children}
     </FilterContext.Provider>

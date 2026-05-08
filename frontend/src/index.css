@@ -887,6 +887,86 @@ input, select, textarea {
   margin-left: 4px;
 }
 
+/* ---- Ay seçici popup ---- */
+.month-picker-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.month-picker-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+  width: 280px;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-red);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(227, 6, 19, 0.15);
+  animation: monthPopupIn 150ms ease-out;
+}
+
+@keyframes monthPopupIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.month-picker-year-block {
+  margin-bottom: 12px;
+}
+
+.month-picker-year-block:last-child { margin-bottom: 0; }
+
+.month-picker-year {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent-red);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.month-picker-cell {
+  padding: 8px 0;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.month-picker-cell:hover:not(:disabled) {
+  background: rgba(227, 6, 19, 0.10);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.month-picker-cell-active,
+.month-picker-cell-active:hover {
+  background: var(--accent-red);
+  color: #fff;
+  border-color: var(--accent-red);
+  box-shadow: 0 0 12px rgba(227, 6, 19, 0.4);
+}
+
+.month-picker-cell-disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
 .chip-platform.chip-active {
   background: var(--accent-blue);
   border-color: var(--accent-blue);

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Calendar, X } from 'lucide-react';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { Calendar, X, ChevronDown } from 'lucide-react';
 import { useFilters } from '../context/FilterContext';
 import { filterAPI } from '../services/api';
 
@@ -12,8 +12,17 @@ const PRESETS = [
   { key: 'custom', label: 'Özel' },
 ];
 
+const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+                     'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+const MONTH_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+                     'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+
 const fromYYYYMMDD = (s) => s ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : '';
 const toYYYYMMDD = (s) => s ? s.replaceAll('-', '') : '';
+const parseYYYYMMDD = (s) => {
+  if (!s || s.length !== 8) return null;
+  return new Date(`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00`);
+};
 
 const PLATFORMS = [
   { key: 'all',    label: 'Tüm Platformlar' },
@@ -22,8 +31,13 @@ const PLATFORMS = [
 ];
 
 export default function FilterBar({ showChannel = true, showDevice = true, showBrand = false, showCategory = false, showPlatform = true }) {
-  const { filters, updateFilter, applyPreset, resetFilters, anchorDate } = useFilters();
-  const [options, setOptions] = useState({ channels: [], devices: [], brands: [], categories: [] });
+  const { filters, updateFilter, applyPreset, applyMonth, resetFilters, anchorDate } = useFilters();
+  const [options, setOptions] = useState({
+    channels: [], devices: [], brands: [], categories: [],
+    minDate: null, maxDate: null,
+  });
+  const [monthOpen, setMonthOpen] = useState(false);
+  const monthRef = useRef(null);
 
   useEffect(() => {
     filterAPI.options()
@@ -32,9 +46,56 @@ export default function FilterBar({ showChannel = true, showDevice = true, showB
         devices: data.devices || [],
         brands: data.brands || [],
         categories: data.categories || [],
+        minDate: parseYYYYMMDD(String(data?.dateRange?.minDate || '').replace(/-/g, '')),
+        maxDate: parseYYYYMMDD(String(data?.dateRange?.maxDate || '').replace(/-/g, '')),
       }))
       .catch(() => {});
   }, []);
+
+  // Click-outside ile ay popup'ı kapat
+  useEffect(() => {
+    if (!monthOpen) return;
+    const handler = (e) => {
+      if (monthRef.current && !monthRef.current.contains(e.target)) setMonthOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [monthOpen]);
+
+  // Veri aralığındaki yıllar ve aktif aylar
+  const monthsByYear = useMemo(() => {
+    const result = {};
+    const min = options.minDate;
+    const max = options.maxDate;
+    if (!min || !max) return result;
+    const cursor = new Date(min.getFullYear(), min.getMonth(), 1);
+    const end = new Date(max.getFullYear(), max.getMonth(), 1);
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth();
+      if (!result[y]) result[y] = new Set();
+      result[y].add(m);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return result;
+  }, [options.minDate, options.maxDate]);
+
+  // Aktif ay (filter preset 'month-YYYY-MM' formatındaysa)
+  const activeMonth = useMemo(() => {
+    if (!filters.preset?.startsWith('month-')) return null;
+    const parts = filters.preset.split('-');
+    if (parts.length !== 3) return null;
+    return { year: parseInt(parts[1]), monthIndex: parseInt(parts[2]) - 1 };
+  }, [filters.preset]);
+
+  const activeMonthLabel = activeMonth
+    ? `${MONTH_SHORT[activeMonth.monthIndex]} ${activeMonth.year}`
+    : 'Ay Seç';
+
+  const handleMonthClick = (year, monthIndex) => {
+    applyMonth(year, monthIndex);
+    setMonthOpen(false);
+  };
 
   const anchorLabel = anchorDate
     ? `Veri kaynağı: ${anchorDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}`
@@ -53,6 +114,53 @@ export default function FilterBar({ showChannel = true, showDevice = true, showB
             {p.label}
           </button>
         ))}
+
+        {/* Ay seçici */}
+        <div ref={monthRef} className="month-picker-wrapper">
+          <button
+            type="button"
+            className={`chip ${activeMonth ? 'chip-active' : ''}`}
+            onClick={() => setMonthOpen(o => !o)}
+          >
+            <Calendar size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            {activeMonthLabel}
+            <ChevronDown size={11} style={{ marginLeft: 4, verticalAlign: 'middle', transform: monthOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+          </button>
+
+          {monthOpen && (
+            <div className="month-picker-popup">
+              {Object.keys(monthsByYear).length === 0 ? (
+                <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Veri aralığı yükleniyor...
+                </div>
+              ) : (
+                Object.keys(monthsByYear).sort((a, b) => b - a).map(year => (
+                  <div key={year} className="month-picker-year-block">
+                    <div className="month-picker-year">{year}</div>
+                    <div className="month-picker-grid">
+                      {MONTH_SHORT.map((name, idx) => {
+                        const enabled = monthsByYear[year].has(idx);
+                        const isActive = activeMonth?.year === parseInt(year) && activeMonth?.monthIndex === idx;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={!enabled}
+                            className={`month-picker-cell ${isActive ? 'month-picker-cell-active' : ''} ${!enabled ? 'month-picker-cell-disabled' : ''}`}
+                            onClick={() => enabled && handleMonthClick(parseInt(year), idx)}
+                            title={enabled ? `${MONTH_NAMES[idx]} ${year}` : 'Bu ayda veri yok'}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {showPlatform && (
