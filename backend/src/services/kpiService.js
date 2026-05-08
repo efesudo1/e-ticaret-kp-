@@ -2672,18 +2672,46 @@ class KpiService {
     const cached = await this.getFromCache(cacheKey);
     if (cached) return cached;
 
-    // Tarih varsayılanı: son 30 gün (anchor data maxDate'i kullanılmadığı için backend tarafında tüm veri)
-    // Filter geliyorsa onu kullan, yoksa veri içindeki son 30 gün
+    // ---- UTC bazlı güvenli tarih helper'ları (lokal saat dilimi etkilemez) ----
+    const DAY_MS = 86400000;
+    const parseYYYYMMDD = (s) => {
+      if (!s || s.length !== 8) return null;
+      const y = parseInt(s.slice(0, 4));
+      const m = parseInt(s.slice(4, 6));
+      const d = parseInt(s.slice(6, 8));
+      if (!y || !m || !d) return null;
+      return Date.UTC(y, m - 1, d);
+    };
+    const fmtMs = (ms) => {
+      const d = new Date(ms);
+      return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+
+    // Tarih varsayılanı: son 30 gün (filter yoksa veri içindeki maxDate'ten geri)
     let { startDate, endDate } = filters;
     if (!startDate || !endDate) {
       const [maxRow] = await db.query("SELECT MAX(DATE_FORMAT(order_date, '%Y%m%d')) AS m FROM orders");
       const maxStr = maxRow[0]?.m || '20250331';
-      const max = new Date(`${maxStr.slice(0, 4)}-${maxStr.slice(4, 6)}-${maxStr.slice(6, 8)}`);
-      const min = new Date(max);
-      min.setDate(min.getDate() - 30);
-      const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
-      startDate = fmt(min);
-      endDate = fmt(max);
+      const maxMs = parseYYYYMMDD(maxStr) || parseYYYYMMDD('20250331');
+      const minMs = maxMs - 30 * DAY_MS;
+      startDate = fmtMs(minMs);
+      endDate = fmtMs(maxMs);
+    }
+
+    // Tarih validasyonu
+    const startMs = parseYYYYMMDD(startDate);
+    const endMs = parseYYYYMMDD(endDate);
+    if (!startMs || !endMs || startMs > endMs) {
+      // Geçersiz aralık → boş sonuç
+      return {
+        period: { startDate, endDate, days: 0 },
+        status: { currentRevenue: 0, currentOrders: 0, previousRevenue: 0, revenueChange: 0,
+                  goal: 0, goalProgress: 0, forecast30Days: 0, dailyAverage: 0 },
+        profitable: [], losing: [], noAdStars: [],
+        pareto: { top: [], ratio: 0, totalCampaigns: 0 },
+        abandonedProducts: [], rising: [], falling: [],
+        runningOut: [], overstocked: [],
+      };
     }
 
     // ============ 1) Bu Ayki Durum (Goal + Forecast) ============
@@ -2696,15 +2724,14 @@ class KpiService {
     const currentRevenue = Number(currRow[0].revenue);
     const currentOrders = Number(currRow[0].orders);
 
-    // Önceki 30 gün (karşılaştırma için)
-    const sd = new Date(`${startDate.slice(0, 4)}-${startDate.slice(4, 6)}-${startDate.slice(6, 8)}`);
-    const prevEnd = new Date(sd); prevEnd.setDate(prevEnd.getDate() - 1);
-    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - 30);
-    const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+    // Önceki dönem (karşılaştırma için, aynı uzunlukta)
+    const periodMs = endMs - startMs;
+    const prevEndMs = startMs - DAY_MS;
+    const prevStartMs = prevEndMs - periodMs;
     const [prevRow] = await db.query(
       `SELECT COALESCE(SUM(order_revenue), 0) AS revenue
        FROM orders WHERE DATE_FORMAT(order_date, '%Y%m%d') BETWEEN ? AND ?`,
-      [fmt(prevStart), fmt(prevEnd)]
+      [fmtMs(prevStartMs), fmtMs(prevEndMs)]
     );
     const previousRevenue = Number(prevRow[0].revenue);
 
@@ -2905,29 +2932,33 @@ class KpiService {
     }));
 
     // ============ 5) Velocity Trend — Yükselen / Sönen Ürünler ============
-    // Son 7 gün vs önceki 7 gün karşılaştırması
-    const last7Start = new Date(`${endDate.slice(0, 4)}-${endDate.slice(4, 6)}-${endDate.slice(6, 8)}`);
-    last7Start.setDate(last7Start.getDate() - 6);
-    const prev7End = new Date(last7Start); prev7End.setDate(prev7End.getDate() - 1);
-    const prev7Start = new Date(prev7End); prev7Start.setDate(prev7Start.getDate() - 6);
+    // Son 7 gün vs önceki 7 gün karşılaştırması — aralık 7 günden kısaysa skip
+    const last7StartMs = endMs - 6 * DAY_MS;
+    const prev7EndMs = last7StartMs - DAY_MS;
+    const prev7StartMs = prev7EndMs - 6 * DAY_MS;
 
-    const [trendRows] = await db.query(
-      `SELECT
-         oi.item_id AS sku,
-         MAX(oi.item_name) AS item_name,
-         MAX(oi.item_brand) AS item_brand,
-         SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS recent7,
-         SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS prev7
-       FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
-       WHERE DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ?
-       GROUP BY oi.item_id
-       HAVING recent7 + prev7 >= 5`,
-      [
-        fmt(last7Start), endDate,
-        fmt(prev7Start), fmt(prev7End),
-        fmt(prev7Start), endDate,
-      ]
-    );
+    let trendRows = [];
+    // Eğer aralık 7 günden uzunsa velocity hesabı anlamlı
+    if (endMs - startMs >= 6 * DAY_MS) {
+      const [rows] = await db.query(
+        `SELECT
+           oi.item_id AS sku,
+           MAX(oi.item_name) AS item_name,
+           MAX(oi.item_brand) AS item_brand,
+           SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS recent7,
+           SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS prev7
+         FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+         WHERE DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ?
+         GROUP BY oi.item_id
+         HAVING recent7 + prev7 >= 5`,
+        [
+          fmtMs(last7StartMs), endDate,
+          fmtMs(prev7StartMs), fmtMs(prev7EndMs),
+          fmtMs(prev7StartMs), endDate,
+        ]
+      );
+      trendRows = rows;
+    }
     const withTrend = trendRows.map(r => {
       const recent = Number(r.recent7);
       const prev = Number(r.prev7);
@@ -2948,7 +2979,7 @@ class KpiService {
     // ============ 6) Stock Alarms ============
     // Tükeniyor: stock_quantity < (günlük satış × 14)
     // Yığılan: stock_quantity > (günlük satış × 90)
-    const periodDays = Math.max(1, Math.round((new Date(`${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}`) - new Date(`${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}`)) / 86400000));
+    const periodDays = Math.max(1, Math.round((endMs - startMs) / DAY_MS) + 1);
     const [stockRows] = await db.query(
       `SELECT
          p.sku, p.product_name AS item_name, p.brand AS item_brand,

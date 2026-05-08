@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // Production: relative '/api' (nginx/caddy reverse proxy üzerinden backend'e)
 // Development: VITE_API_BASE veya http://localhost:3000/api
@@ -19,15 +20,45 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 responses
+// Handle errors globally
+let lastErrorAt = 0;
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const url = error.config?.url || '';
+
+    // 401: oturum sona erdi → login'e
+    if (status === 401) {
       localStorage.removeItem('kpi_token');
       localStorage.removeItem('kpi_user');
-      window.location.href = '/login';
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
     }
+
+    // Cancel edilen istekleri sessizce geç (component unmount)
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return Promise.reject(error);
+    }
+
+    // /chat ve /reports/excel kendi hata yönetimlerini yapsın
+    const skipToast = url.includes('/chat') || url.includes('/reports/excel');
+    if (skipToast) return Promise.reject(error);
+
+    // Çoklu hatayı bastırmamak için 2 saniyede 1 toast
+    const now = Date.now();
+    if (now - lastErrorAt > 2000) {
+      lastErrorAt = now;
+      const msg = error.response?.data?.error
+        || (status === 403 ? 'Bu işlem için yetkiniz yok' : null)
+        || (status === 429 ? 'Çok fazla istek — lütfen biraz bekleyin' : null)
+        || (error.code === 'ERR_NETWORK' ? 'Sunucuya ulaşılamıyor' : null)
+        || 'Veri yüklenirken bir hata oluştu';
+      toast.error(msg, { duration: 4000 });
+    }
+
     return Promise.reject(error);
   }
 );

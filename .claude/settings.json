@@ -117,7 +117,10 @@
       "Bash(curl -s -o /dev/null -w \"ChatWidget: %{http_code}\\\\n\" http://localhost:5173/src/components/ChatWidget.jsx)",
       "Bash(curl -s -o /dev/null -w \"Layout: %{http_code}\\\\n\" http://localhost:5173/src/components/Layout.jsx)",
       "Bash(curl -s -o /dev/null -w \"DecisionCenter.jsx: %{http_code}\\\\n\" http://localhost:5173/src/pages/DecisionCenter.jsx)",
-      "Bash(curl -s -o /dev/null -w \"DecisionCenter: %{http_code}\\\\n\" http://localhost:5173/src/pages/DecisionCenter.jsx)"
+      "Bash(curl -s -o /dev/null -w \"DecisionCenter: %{http_code}\\\\n\" http://localhost:5173/src/pages/DecisionCenter.jsx)",
+      "Bash(curl -s -o /dev/null -w \"Local backend: %{http_code}\\\\n\" http://localhost:3000/api/health)",
+      "Bash(grep -n \"new Date\\(\\\\`\\\\${startDate\" \"/Users/efe49/Desktop/projects/e ticaret kğpı dashboard/backend/src/services/kpiService.js\")",
+      "Bash(curl -v http://localhost:3000/api/health)"
     ],
     "additionalDirectories": [
       "/Users/efe49/Desktop/projects/e ticaret kğpı dashboard"

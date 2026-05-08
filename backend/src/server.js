@@ -41,8 +41,12 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
-  message: { error: 'Too many requests, please try again later.' }
+  // Frontend her sayfada birden fazla endpoint çağırır + filtre değişiklikleri
+  // 1 yönetici 15dk'da rahatça 1500 istek atabilir
+  max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX) : 2000,
+  message: { error: 'Çok fazla istek gönderildi, lütfen biraz bekleyin.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
