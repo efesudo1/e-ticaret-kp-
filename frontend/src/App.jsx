@@ -12,6 +12,7 @@ import CampaignsOverview from './pages/CampaignsOverview';
 import ProductsOverview from './pages/ProductsOverview';
 import PlatformsOverview from './pages/PlatformsOverview';
 import Reports from './pages/Reports';
+import DecisionCenter from './pages/DecisionCenter';
 import { hasPermission, PAGE_PERMISSIONS } from './lib/permissions';
 import { ShieldOff } from 'lucide-react';
 
@@ -86,6 +87,9 @@ function AppRoutes() {
         } />
         <Route path="reports" element={
           <PermissionRoute permKey="view_reports"><Reports /></PermissionRoute>
+        } />
+        <Route path="decision" element={
+          <PermissionRoute permKey="view_decision_center"><DecisionCenter /></PermissionRoute>
         } />
         <Route path="import" element={
           <PermissionRoute permKey="import_data"><Import /></PermissionRoute>

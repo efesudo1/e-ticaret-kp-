@@ -12,6 +12,7 @@ const SIDEBAR_ORDER = [
   { type: 'item',    permKey: 'view_products' },
   { type: 'item',    permKey: 'view_platforms' },
   { type: 'item',    permKey: 'view_reports' },
+  { type: 'item',    permKey: 'view_decision_center' },
   { type: 'section', label: 'SİSTEM',
     visibleIf: (user) => hasPermission(user, 'import_data') || hasPermission(user, 'manage_users') },
   { type: 'item',    permKey: 'import_data' },

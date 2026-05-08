@@ -115,7 +115,8 @@
       "Bash(node -e \"const {GoogleGenAI} = require\\('@google/genai'\\); console.log\\('✅ SDK yüklü, versiyon OK'\\);\")",
       "Bash(curl -s \"https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyCFiOvmbTtuutOntaVOGHSdwIToWHjVb3k\")",
       "Bash(curl -s -o /dev/null -w \"ChatWidget: %{http_code}\\\\n\" http://localhost:5173/src/components/ChatWidget.jsx)",
-      "Bash(curl -s -o /dev/null -w \"Layout: %{http_code}\\\\n\" http://localhost:5173/src/components/Layout.jsx)"
+      "Bash(curl -s -o /dev/null -w \"Layout: %{http_code}\\\\n\" http://localhost:5173/src/components/Layout.jsx)",
+      "Bash(curl -s -o /dev/null -w \"DecisionCenter.jsx: %{http_code}\\\\n\" http://localhost:5173/src/pages/DecisionCenter.jsx)"
     ],
     "additionalDirectories": [
       "/Users/efe49/Desktop/projects/e ticaret kğpı dashboard"

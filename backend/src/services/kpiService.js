@@ -2665,6 +2665,344 @@ class KpiService {
     await this.setCache(cacheKey, result);
     return result;
   }
+
+  // F) Karar Merkezi — yönetici için aksiyon odaklı 6 bölüm
+  async getDecisionCenter(filters = {}) {
+    const cacheKey = `dc:${JSON.stringify(filters)}`;
+    const cached = await this.getFromCache(cacheKey);
+    if (cached) return cached;
+
+    // Tarih varsayılanı: son 30 gün (anchor data maxDate'i kullanılmadığı için backend tarafında tüm veri)
+    // Filter geliyorsa onu kullan, yoksa veri içindeki son 30 gün
+    let { startDate, endDate } = filters;
+    if (!startDate || !endDate) {
+      const [maxRow] = await db.query("SELECT MAX(DATE_FORMAT(order_date, '%Y%m%d')) AS m FROM orders");
+      const maxStr = maxRow[0]?.m || '20250331';
+      const max = new Date(`${maxStr.slice(0, 4)}-${maxStr.slice(4, 6)}-${maxStr.slice(6, 8)}`);
+      const min = new Date(max);
+      min.setDate(min.getDate() - 30);
+      const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+      startDate = fmt(min);
+      endDate = fmt(max);
+    }
+
+    // ============ 1) Bu Ayki Durum (Goal + Forecast) ============
+    // Mevcut periyot ciro
+    const [currRow] = await db.query(
+      `SELECT COALESCE(SUM(order_revenue), 0) AS revenue, COUNT(*) AS orders
+       FROM orders WHERE DATE_FORMAT(order_date, '%Y%m%d') BETWEEN ? AND ?`,
+      [startDate, endDate]
+    );
+    const currentRevenue = Number(currRow[0].revenue);
+    const currentOrders = Number(currRow[0].orders);
+
+    // Önceki 30 gün (karşılaştırma için)
+    const sd = new Date(`${startDate.slice(0, 4)}-${startDate.slice(4, 6)}-${startDate.slice(6, 8)}`);
+    const prevEnd = new Date(sd); prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - 30);
+    const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+    const [prevRow] = await db.query(
+      `SELECT COALESCE(SUM(order_revenue), 0) AS revenue
+       FROM orders WHERE DATE_FORMAT(order_date, '%Y%m%d') BETWEEN ? AND ?`,
+      [fmt(prevStart), fmt(prevEnd)]
+    );
+    const previousRevenue = Number(prevRow[0].revenue);
+
+    // Forecast: son 7 günlük günlük ortalama × 30
+    const [last7] = await db.query(
+      `SELECT DATE_FORMAT(order_date, '%Y%m%d') AS d, COALESCE(SUM(order_revenue), 0) AS r
+       FROM orders WHERE DATE_FORMAT(order_date, '%Y%m%d') BETWEEN ? AND ?
+       GROUP BY d ORDER BY d DESC LIMIT 7`,
+      [startDate, endDate]
+    );
+    const last7Avg = last7.length > 0
+      ? last7.reduce((s, r) => s + Number(r.r), 0) / last7.length
+      : 0;
+    const forecast30Days = Math.round(last7Avg * 30);
+
+    // Goal: önceki periyodun %110'u (basit hedef)
+    const goal = Math.round(previousRevenue * 1.1);
+    const goalProgress = goal > 0 ? Math.round((currentRevenue / goal) * 100) : 0;
+
+    const status = {
+      currentRevenue: Math.round(currentRevenue),
+      currentOrders,
+      previousRevenue: Math.round(previousRevenue),
+      revenueChange: previousRevenue > 0
+        ? Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100)
+        : 0,
+      goal,
+      goalProgress,
+      forecast30Days,
+      dailyAverage: Math.round(last7Avg),
+    };
+
+    // ============ 2) Para Kazandıran vs Para Yutan Ürünler ============
+    // Ürün × Spend (kampanya bağlantılı): orders.campaign_name → meta_ads.action_values_purchase yerine
+    // ürün-bazlı spend için: bir kampanyanın spend'ini o kampanyada satılan ürünlere oranlı dağıt
+    // (oransal attribution - ürünün kampanya cirosu / kampanyanın toplam cirosu × kampanya spend'i)
+
+    const [productRevenue] = await db.query(
+      `SELECT
+         oi.item_id AS sku,
+         MAX(oi.item_name) AS item_name,
+         MAX(oi.item_brand) AS item_brand,
+         o.campaign_name,
+         SUM(oi.line_total) AS productCampRevenue
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE DATE_FORMAT(o.order_date, '%Y%m%d') BETWEEN ? AND ?
+         AND o.campaign_name IS NOT NULL AND o.campaign_name <> ''
+       GROUP BY oi.item_id, o.campaign_name`,
+      [startDate, endDate]
+    );
+
+    // Kampanyaların toplam cirosu (orantı için)
+    const campTotal = {};
+    productRevenue.forEach(r => {
+      campTotal[r.campaign_name] = (campTotal[r.campaign_name] || 0) + Number(r.productCampRevenue);
+    });
+
+    // Kampanyaların spend'i (Meta + Google)
+    const campNames = Object.keys(campTotal);
+    const campSpend = {};
+    if (campNames.length > 0) {
+      const ph = campNames.map(() => '?').join(',');
+      const [metaSpend] = await db.query(
+        `SELECT campaign_name, SUM(spend) AS s FROM meta_ads
+         WHERE campaign_name IN (${ph}) AND DATE_FORMAT(date_start, '%Y%m%d') BETWEEN ? AND ?
+         GROUP BY campaign_name`,
+        [...campNames, startDate, endDate]
+      );
+      const [gSpend] = await db.query(
+        `SELECT campaign_name, SUM(cost_micros)/1000000 AS s FROM google_ads
+         WHERE campaign_name IN (${ph}) AND DATE_FORMAT(date, '%Y%m%d') BETWEEN ? AND ?
+         GROUP BY campaign_name`,
+        [...campNames, startDate, endDate]
+      );
+      [...metaSpend, ...gSpend].forEach(r => {
+        campSpend[r.campaign_name] = (campSpend[r.campaign_name] || 0) + Number(r.s || 0);
+      });
+    }
+
+    // Ürün başına spend (orantısal): ∑(productCampRev / campTotal × campSpend)
+    const productAgg = {};
+    productRevenue.forEach(r => {
+      const ct = campTotal[r.campaign_name] || 0;
+      const cs = campSpend[r.campaign_name] || 0;
+      const allocSpend = ct > 0 ? (Number(r.productCampRevenue) / ct) * cs : 0;
+      if (!productAgg[r.sku]) {
+        productAgg[r.sku] = {
+          sku: r.sku, item_name: r.item_name, item_brand: r.item_brand,
+          revenue: 0, spend: 0,
+        };
+      }
+      productAgg[r.sku].revenue += Number(r.productCampRevenue);
+      productAgg[r.sku].spend += allocSpend;
+    });
+
+    // Tüm ürün cirosu (kampanyalı + organik) — total_revenue için
+    const [allProdRev] = await db.query(
+      `SELECT oi.item_id AS sku, SUM(oi.line_total) AS total
+       FROM order_items oi
+       JOIN orders o ON o.order_id = oi.order_id
+       WHERE DATE_FORMAT(o.order_date, '%Y%m%d') BETWEEN ? AND ?
+       GROUP BY oi.item_id`,
+      [startDate, endDate]
+    );
+    const totalProdRev = {};
+    allProdRev.forEach(r => { totalProdRev[r.sku] = Number(r.total); });
+
+    const productPL = Object.values(productAgg)
+      .map(p => ({
+        ...p,
+        revenue: Math.round(p.revenue),
+        spend: Math.round(p.spend),
+        totalRevenue: Math.round(totalProdRev[p.sku] || 0),
+        roas: p.spend > 0 ? p.revenue / p.spend : null,
+        netProfit: Math.round((totalProdRev[p.sku] || 0) - p.spend),
+      }))
+      .filter(p => p.spend > 50); // gürültüyü temizle
+
+    const profitable = [...productPL]
+      .filter(p => p.roas != null && p.roas >= 3)
+      .sort((a, b) => b.netProfit - a.netProfit)
+      .slice(0, 5);
+
+    const losing = [...productPL]
+      .filter(p => p.roas != null && p.roas < 2)
+      .sort((a, b) => a.roas - b.roas)
+      .slice(0, 5);
+
+    // Reklamsız satan yıldızlar: spend ~ 0 ama yüksek satış
+    const [noAdStars] = await db.query(
+      `SELECT oi.item_id AS sku, MAX(oi.item_name) AS item_name,
+              MAX(oi.item_brand) AS item_brand,
+              SUM(CASE WHEN o.campaign_name IS NULL OR o.campaign_name = '' THEN oi.line_total ELSE 0 END) AS organicRev,
+              SUM(CASE WHEN o.campaign_name IS NOT NULL AND o.campaign_name <> '' THEN oi.line_total ELSE 0 END) AS paidRev,
+              SUM(oi.line_total) AS totalRev
+       FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+       WHERE DATE_FORMAT(o.order_date, '%Y%m%d') BETWEEN ? AND ?
+       GROUP BY oi.item_id
+       HAVING totalRev > 5000 AND organicRev / totalRev > 0.7
+       ORDER BY organicRev DESC LIMIT 5`,
+      [startDate, endDate]
+    );
+
+    // ============ 3) Pareto 80/20 — Bütçeyi nereye yoğunlaştır ============
+    const [campRevenue] = await db.query(
+      `SELECT o.campaign_name, SUM(oi.line_total) AS revenue, COUNT(DISTINCT o.order_id) AS orders
+       FROM orders o JOIN order_items oi ON oi.order_id = o.order_id
+       WHERE DATE_FORMAT(o.order_date, '%Y%m%d') BETWEEN ? AND ?
+         AND o.campaign_name IS NOT NULL AND o.campaign_name <> ''
+       GROUP BY o.campaign_name
+       ORDER BY revenue DESC`,
+      [startDate, endDate]
+    );
+    const totalCampRev = campRevenue.reduce((s, c) => s + Number(c.revenue), 0);
+    let cumRev = 0;
+    let paretoCount = 0;
+    const paretoCamps = [];
+    for (const c of campRevenue) {
+      cumRev += Number(c.revenue);
+      paretoCamps.push({
+        campaign_name: c.campaign_name,
+        revenue: Math.round(Number(c.revenue)),
+        share: totalCampRev > 0 ? Math.round((Number(c.revenue) / totalCampRev) * 100) : 0,
+        orders: Number(c.orders),
+        spend: Math.round(campSpend[c.campaign_name] || 0),
+      });
+      paretoCount++;
+      if (cumRev >= totalCampRev * 0.8) break;
+    }
+    const totalCamps = campRevenue.length;
+    const pareto = {
+      top: paretoCamps,
+      ratio: totalCamps > 0 ? Math.round((paretoCount / totalCamps) * 100) : 0,
+      totalCampaigns: totalCamps,
+    };
+
+    // ============ 4) Cart Abandonment — Kaybedilen Satışlar ============
+    const [cartAbandon] = await db.query(
+      `SELECT itemId AS sku, MAX(itemName) AS item_name, MAX(itemBrand) AS item_brand,
+              SUM(itemsViewed) AS viewed,
+              SUM(itemsAddedToCart) AS added,
+              SUM(itemsCheckedOut) AS checkedOut,
+              SUM(itemsPurchased) AS purchased
+       FROM ga4_item_interactions
+       WHERE date BETWEEN ? AND ?
+       GROUP BY itemId
+       HAVING added >= 10 AND added > purchased * 1.5
+       ORDER BY (added - purchased) DESC LIMIT 5`,
+      [startDate, endDate]
+    );
+    const abandonedProducts = cartAbandon.map(p => ({
+      sku: p.sku, item_name: p.item_name, item_brand: p.item_brand,
+      viewed: Number(p.viewed), added: Number(p.added),
+      purchased: Number(p.purchased),
+      lost: Number(p.added) - Number(p.purchased),
+      conversionRate: p.added > 0 ? Math.round((Number(p.purchased) / Number(p.added)) * 100) : 0,
+    }));
+
+    // ============ 5) Velocity Trend — Yükselen / Sönen Ürünler ============
+    // Son 7 gün vs önceki 7 gün karşılaştırması
+    const last7Start = new Date(`${endDate.slice(0, 4)}-${endDate.slice(4, 6)}-${endDate.slice(6, 8)}`);
+    last7Start.setDate(last7Start.getDate() - 6);
+    const prev7End = new Date(last7Start); prev7End.setDate(prev7End.getDate() - 1);
+    const prev7Start = new Date(prev7End); prev7Start.setDate(prev7Start.getDate() - 6);
+
+    const [trendRows] = await db.query(
+      `SELECT
+         oi.item_id AS sku,
+         MAX(oi.item_name) AS item_name,
+         MAX(oi.item_brand) AS item_brand,
+         SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS recent7,
+         SUM(CASE WHEN DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ? THEN oi.quantity ELSE 0 END) AS prev7
+       FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+       WHERE DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ?
+       GROUP BY oi.item_id
+       HAVING recent7 + prev7 >= 5`,
+      [
+        fmt(last7Start), endDate,
+        fmt(prev7Start), fmt(prev7End),
+        fmt(prev7Start), endDate,
+      ]
+    );
+    const withTrend = trendRows.map(r => {
+      const recent = Number(r.recent7);
+      const prev = Number(r.prev7);
+      const change = prev > 0 ? ((recent - prev) / prev) * 100 : (recent > 0 ? 100 : 0);
+      return {
+        sku: r.sku, item_name: r.item_name, item_brand: r.item_brand,
+        recent7: recent, prev7: prev,
+        changePercent: Math.round(change),
+      };
+    });
+    const rising = [...withTrend]
+      .filter(p => p.changePercent > 30 && p.recent7 >= 3)
+      .sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
+    const falling = [...withTrend]
+      .filter(p => p.changePercent < -30 && p.prev7 >= 3)
+      .sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
+
+    // ============ 6) Stock Alarms ============
+    // Tükeniyor: stock_quantity < (günlük satış × 14)
+    // Yığılan: stock_quantity > (günlük satış × 90)
+    const periodDays = Math.max(1, Math.round((new Date(`${endDate.slice(0,4)}-${endDate.slice(4,6)}-${endDate.slice(6,8)}`) - new Date(`${startDate.slice(0,4)}-${startDate.slice(4,6)}-${startDate.slice(6,8)}`)) / 86400000));
+    const [stockRows] = await db.query(
+      `SELECT
+         p.sku, p.product_name AS item_name, p.brand AS item_brand,
+         p.stock_quantity,
+         COALESCE(s.units, 0) AS unitsSold
+       FROM products p
+       LEFT JOIN (
+         SELECT oi.item_id, SUM(oi.quantity) AS units
+         FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+         WHERE DATE_FORMAT(o.order_date,'%Y%m%d') BETWEEN ? AND ?
+         GROUP BY oi.item_id
+       ) s ON s.item_id = p.sku
+       WHERE p.is_active = 1`,
+      [startDate, endDate]
+    );
+    const withStock = stockRows.map(r => {
+      const dailyVel = Number(r.unitsSold) / periodDays;
+      const daysLeft = dailyVel > 0 ? Math.round(Number(r.stock_quantity) / dailyVel) : null;
+      return {
+        sku: r.sku, item_name: r.item_name, item_brand: r.item_brand,
+        stock: Number(r.stock_quantity),
+        unitsSold: Number(r.unitsSold),
+        dailyVelocity: Number(dailyVel.toFixed(2)),
+        daysLeft,
+      };
+    });
+    const runningOut = withStock
+      .filter(p => p.daysLeft != null && p.daysLeft <= 14 && p.unitsSold >= 3)
+      .sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5);
+    const overstocked = withStock
+      .filter(p => p.dailyVelocity >= 0.1 && p.daysLeft != null && p.daysLeft >= 90)
+      .sort((a, b) => b.daysLeft - a.daysLeft).slice(0, 5);
+
+    const result = {
+      period: { startDate, endDate, days: periodDays },
+      status,
+      profitable,
+      losing,
+      noAdStars: noAdStars.map(s => ({
+        sku: s.sku, item_name: s.item_name, item_brand: s.item_brand,
+        organicRev: Math.round(Number(s.organicRev)),
+        totalRev: Math.round(Number(s.totalRev)),
+        organicShare: Math.round((Number(s.organicRev) / Number(s.totalRev)) * 100),
+      })),
+      pareto,
+      abandonedProducts,
+      rising,
+      falling,
+      runningOut,
+      overstocked,
+    };
+    await this.setCache(cacheKey, result);
+    return result;
+  }
 }
 
 module.exports = KpiService;

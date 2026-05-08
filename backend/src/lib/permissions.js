@@ -13,6 +13,7 @@ const PERMISSION_KEYS = [
   'import_data',
   'manage_users',
   'use_chatbot',
+  'view_decision_center',
 ];
 
 // Rol bazlı varsayılanlar — kullanıcının permissions kolonu NULL ise bunlar uygulanır.
@@ -27,6 +28,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     import_data: true,
     manage_users: true,
     use_chatbot: true,
+    view_decision_center: true,
   },
   marketing: {
     view_overview: true,
@@ -38,6 +40,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     import_data: true,
     manage_users: false,
     use_chatbot: true,
+    view_decision_center: true,
   },
   viewer: {
     view_overview: true,
@@ -49,6 +52,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
     import_data: false,
     manage_users: false,
     use_chatbot: true,
+    view_decision_center: true,
   },
 };
 

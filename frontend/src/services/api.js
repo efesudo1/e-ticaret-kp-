@@ -84,6 +84,7 @@ export const kpiAPI = {
   productPlatformBreakdown: (params) => api.get('/kpi/product-platform-breakdown', { params }),
   platformOverview:         (params) => api.get('/kpi/platform-overview',          { params }),
   allProducts:              (params) => api.get('/kpi/all-products',               { params }),
+  decisionCenter:           (params) => api.get('/kpi/decision-center',            { params }),
 };
 
 // Data
