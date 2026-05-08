@@ -1533,6 +1533,106 @@ input, select, textarea {
   padding: 16px 24px;
 }
 
+/* ============================================================
+   HelpTooltip — Soru işareti popup'ı
+   ============================================================ */
+.help-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.help-tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 0;
+  opacity: 0.7;
+}
+
+.help-tooltip-trigger:hover {
+  color: var(--accent-red);
+  background: rgba(227, 6, 19, 0.10);
+  opacity: 1;
+}
+
+.help-tooltip-trigger-active {
+  color: var(--accent-red);
+  background: rgba(227, 6, 19, 0.15);
+  border-color: var(--accent-red);
+  opacity: 1;
+}
+
+.help-tooltip-content {
+  position: absolute;
+  z-index: 1000;
+  width: 300px;
+  max-width: calc(100vw - 40px);
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-red);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(227, 6, 19, 0.15);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.2px;
+  text-align: left;
+  white-space: normal;
+  animation: helpTooltipIn 150ms ease-out;
+}
+
+.help-tooltip-content strong { color: var(--accent-red); font-weight: 600; }
+.help-tooltip-content code {
+  background: var(--bg-glass);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-primary);
+}
+
+.help-tooltip-top {
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.help-tooltip-bottom {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.help-tooltip-left {
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.help-tooltip-right {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+@keyframes helpTooltipIn {
+  from { opacity: 0; transform: translate(var(--tx, -50%), 4px); }
+  to   { opacity: 1; transform: translate(var(--tx, -50%), 0); }
+}
+
 /* ---- Data Table ---- */
 .data-table-container {
   overflow-x: auto;

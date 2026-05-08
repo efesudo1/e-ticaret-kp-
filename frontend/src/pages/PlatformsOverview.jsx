@@ -6,6 +6,7 @@ import { useFilters } from '../context/FilterContext';
 import { kpiAPI, reportsAPI } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import DataTable from '../components/DataTable';
+import HelpTooltip from '../components/HelpTooltip';
 
 const fmtTL = (n) => '₺' + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
 const fmtNum = (n) => Number(n || 0).toLocaleString('tr-TR');
@@ -160,6 +161,28 @@ export default function PlatformsOverview() {
   };
 
   // ----- Üst kısım: kartlar (drill-down kapalıysa) -----
+  const PLATFORM_HELP = {
+    Meta: <>
+      <strong>Facebook + Instagram ücretli reklamı</strong> ile gelen siparişler.<br /><br />
+      Kaynak: <code>campaigns.platform = 'meta'</code> olan kampanyalardan gelen siparişler. Spend: <code>meta_ads.spend</code>.<br /><br />
+      ROAS düşükse hedefleme veya yaratıcı sorunu olabilir.
+    </>,
+    Google: <>
+      <strong>Google Ads ücretli reklamı</strong> ile gelen siparişler (Search, Shopping, PMax, Display).<br /><br />
+      Kaynak: <code>campaigns.platform = 'google'</code>. Spend: <code>google_ads.cost_micros÷1.000.000</code>.
+    </>,
+    Organic: <>
+      <strong>Ücretsiz/organik trafikten</strong> gelen siparişler.<br /><br />
+      Kaynak: <code>orders.channel</code> şu değerlerden biri: "Organic Search" (Google'da arama), "Organic Social" (Instagram/X organik), "Organic Video" (YouTube).<br /><br />
+      <strong>Reklam parası harcanmadan</strong> gelen ciro — SEO ve marka bilinirliği başarısı.
+    </>,
+    Direct: <>
+      <strong>Doğrudan siteye gelen</strong> siparişler.<br /><br />
+      Kaynak: <code>orders.channel = 'Direct'</code> (URL'i kendisi yazmış, yer iminden tıklamış) veya kampanya bilgisi olmayan siparişler.<br /><br />
+      Sadık müşteri / marka bilinirliği göstergesi.
+    </>,
+  };
+
   const renderTopCards = () => (
     <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
       {corePlatforms.map(p => (
@@ -175,6 +198,7 @@ export default function PlatformsOverview() {
         >
           <div className="kpi-card-label" style={{ color: PLATFORM_COLORS[p.platform], fontWeight: 700, fontSize: 13 }}>
             {p.platform}
+            <HelpTooltip>{PLATFORM_HELP[p.platform]}</HelpTooltip>
           </div>
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
@@ -307,7 +331,14 @@ export default function PlatformsOverview() {
 
           <div className="chart-card" style={{ marginTop: 20 }}>
             <div className="chart-card-header">
-              <div className="chart-card-title">Platform Bazlı Günlük Ciro Trendi</div>
+              <div className="chart-card-title">
+                Platform Bazlı Günlük Ciro Trendi
+                <HelpTooltip>
+                  <strong>4 platformun günlük cirosu yan yana</strong> çizgi grafikte.<br /><br />
+                  Hangi günde hangi kanal yükseldi/düştü görebilirsin (örn. kampanya tepe günü, hafta sonu Direct artışı).<br /><br />
+                  Kaynak: <code>orders.order_date</code> bazında günlük gruplama, platform sınıflandırması <code>campaigns.platform</code> + <code>orders.channel</code> üzerinden.
+                </HelpTooltip>
+              </div>
             </div>
             <ReactApexChart
               type="line"
@@ -394,6 +425,12 @@ export default function PlatformsOverview() {
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Megaphone size={14} /> {selectedPlatform} Kampanyaları
+                <HelpTooltip>
+                  Bu platforma ait <strong>tüm aktif kampanyalar</strong>.<br /><br />
+                  Her satırda: <strong>Maliyet</strong> (reklam harcaması), <strong>Kazanç</strong> (kampanyadan gelen ciro), <strong>Net Kâr</strong> (Ciro − Maliyet), <strong>ROAS</strong>, sipariş ve adet.<br /><br />
+                  <strong>Sağdaki → butonu</strong> ile kampanyaya tıkla → o kampanyada satılan tüm ürünleri görürsün.<br /><br />
+                  Kolon başlıklarına tıklayarak Excel mantığında sıralayabilirsin.
+                </HelpTooltip>
                 {campaignsData && <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 'auto', fontSize: 11 }}>
                   Bir satıra tıkla → ürün detayı
                 </span>}

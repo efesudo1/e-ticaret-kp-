@@ -6,6 +6,7 @@ import { useFilters } from '../context/FilterContext';
 import { kpiAPI, reportsAPI } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import DataTable from '../components/DataTable';
+import HelpTooltip from '../components/HelpTooltip';
 
 const fmtTL = (n) => '₺' + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
 const fmtNum = (n) => Number(n || 0).toLocaleString('tr-TR');
@@ -168,7 +169,13 @@ export default function ProductsOverview() {
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <div className="kpi-card">
           <div className="kpi-card-icon cyan"><Package size={22} /></div>
-          <div className="kpi-card-label">Toplam Ürün</div>
+          <div className="kpi-card-label">
+            Toplam Ürün
+            <HelpTooltip>
+              Veritabanında <strong>aktif (is_active=1)</strong> olan tüm ürün sayısı. Filtre uygulandıysa o filtre uygulandıktan sonraki sayı gösterilir (örn. sadece "Nike" markası seçildiyse Nike ürünleri).<br /><br />
+              "Satış yapan" alt bilgisi, seçili tarih aralığında en az 1 adet satılmış ürünleri sayar.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtNum(summary.totalProducts)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {summary.sellingProducts} ürün satış yaptı
@@ -176,17 +183,35 @@ export default function ProductsOverview() {
         </div>
         <div className="kpi-card">
           <div className="kpi-card-icon green"><Tag size={22} /></div>
-          <div className="kpi-card-label">Toplam Ciro</div>
+          <div className="kpi-card-label">
+            Toplam Ciro
+            <HelpTooltip>
+              Listedeki tüm ürünlerin <strong>seçili tarih aralığındaki ciro toplamı</strong>.<br /><br />
+              Kaynak: <code>order_items.line_total</code> her ürün için toplanır. Filtre değiştikçe (tarih, platform, marka) bu değer dinamik hesaplanır.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtTL(summary.totalRevenue)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-icon amber"><Package size={22} /></div>
-          <div className="kpi-card-label">Toplam Satılan Adet</div>
+          <div className="kpi-card-label">
+            Toplam Satılan Adet
+            <HelpTooltip>
+              Tüm sipariş kalemlerindeki <strong>quantity toplamı</strong>.<br /><br />
+              Kaynak: <code>order_items.quantity</code>. Sipariş sayısı ile karıştırılmamalı: bir siparişte 5 adet ürün varsa <em>1 sipariş, 5 adet</em> olarak sayılır.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtNum(summary.totalUnits)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-icon rose"><Award size={22} /></div>
-          <div className="kpi-card-label">En Çok Kazandıran</div>
+          <div className="kpi-card-label">
+            En Çok Kazandıran
+            <HelpTooltip>
+              Seçili tarihte <strong>en yüksek ciro yapan ürün</strong>.<br /><br />
+              Tabloda otomatik olarak ciro sırasında ilk olarak listelenir. Detay için satırın → butonuna tıkla; bu ürünün hangi kampanyalardan ve platformlardan kazandığını görebilirsin.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value" style={{ fontSize: 14, lineHeight: 1.4 }}>
             {summary.top?.item_name || '—'}
           </div>
@@ -198,8 +223,14 @@ export default function ProductsOverview() {
 
       {/* Üst başlık + indir butonu */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 16 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center' }}>
           Tüm Ürünler ({fmtNum(allProducts.length)})
+          <HelpTooltip>
+            <strong>products</strong> tablosundaki tüm aktif ürünler ve seçili tarihteki satış metrikleri.<br /><br />
+            <strong>Marj %</strong> = (Fiyat − Maliyet) / Fiyat × 100. Renkler: yeşil ≥%30 (sağlıklı), sarı ≥%15 (kabul edilebilir), kırmızı &lt;%15 (riskli).<br /><br />
+            <strong>Satılan / Ciro</strong> seçili tarih aralığına bağlıdır; o dönemde satılmamışsa 0 görünür ama ürün listede kalır.<br /><br />
+            <strong>Kolon başlıklarına tıkla</strong> → sırala. <strong>Üstteki arama</strong> SKU/ad/marka/kategori içinde geçer. Satırın <strong>→</strong> butonu detayları açar.
+          </HelpTooltip>
         </div>
         <button className="btn-excel-mini" onClick={handleDownloadExcel} disabled={downloadingExcel || allProducts.length === 0}>
           <Download size={13} /> {downloadingExcel ? 'Hazırlanıyor...' : 'Excel İndir'}

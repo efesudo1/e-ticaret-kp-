@@ -6,6 +6,7 @@ import { useFilters } from '../context/FilterContext';
 import { kpiAPI, reportsAPI } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import DataTable from '../components/DataTable';
+import HelpTooltip from '../components/HelpTooltip';
 
 const fmtTL = (n) => '₺' + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
 const fmtNum = (n) => Number(n || 0).toLocaleString('tr-TR');
@@ -187,17 +188,35 @@ export default function CampaignsOverview() {
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="kpi-card">
           <div className="kpi-card-icon rose"><Megaphone size={22} /></div>
-          <div className="kpi-card-label">Aktif Kampanya</div>
+          <div className="kpi-card-label">
+            Aktif Kampanya
+            <HelpTooltip>
+              Seçili tarih aralığında <strong>en az bir satış yapmış</strong> kampanya sayısı.<br /><br />
+              Tüm kampanyalar (durdurulmuş dahil) <code>campaigns</code> tablosunda 19 adet; bu sayı sadece bu dönemde aktif olarak ciro üretenleri gösterir.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtNum(summary.count)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-icon amber"><DollarSign size={22} /></div>
-          <div className="kpi-card-label">Toplam Reklam Harcama</div>
+          <div className="kpi-card-label">
+            Toplam Reklam Harcama
+            <HelpTooltip>
+              Tüm Meta + Google kampanyalarına <strong>seçili tarihte yapılan toplam harcama</strong>.<br /><br />
+              Kaynak: <code>meta_ads.spend</code> + <code>google_ads.cost_micros÷1.000.000</code>. Organic ve Direct kanalları reklamsız olduğu için bu toplama dahil değildir.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtTL(summary.totalSpend)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-card-icon green"><TrendingUp size={22} /></div>
-          <div className="kpi-card-label">Toplam Kampanya Cirosu</div>
+          <div className="kpi-card-label">
+            Toplam Kampanya Cirosu
+            <HelpTooltip>
+              Sadece <strong>kampanya bağlantısı olan siparişlerin</strong> ciro toplamı (<code>orders.campaign_name IS NOT NULL</code>).<br /><br />
+              Genel Bakış'taki "Toplam Ciro"dan farklıdır — orada Direct ve Organic de dahildir, burada sadece reklam kampanyalarına atfedilen siparişler vardır.
+            </HelpTooltip>
+          </div>
           <div className="kpi-card-value">{fmtTL(summary.totalRevenue)}</div>
         </div>
       </div>
@@ -207,6 +226,12 @@ export default function CampaignsOverview() {
         <div className="card-header">
           <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Scale size={16} /> Kampanya Karşılaştırma
+            <HelpTooltip>
+              <strong>İki kampanyayı yan yana</strong> karşılaştırır.<br /><br />
+              Hangi metrikleri görüntüleyeceğini <strong>chip'lerden seç/kaldır</strong>: Ciro, Reklam Harcama, ROAS, Sipariş, Adet, AOV, Ürün başına ciro, Net kâr, En çok satan ürün.<br /><br />
+              "Fark" kolonu A vs B yüzdesel farkı gösterir; pozitif yeşil = A daha iyi, kırmızı = B daha iyi.<br /><br />
+              Sağ üstteki <strong>Excel</strong> butonu ile sadece seçtiğin metrikler indirilebilir.
+            </HelpTooltip>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -388,8 +413,15 @@ export default function CampaignsOverview() {
 
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center' }}>
             Kampanya Performansı
+            <HelpTooltip>
+              Seçili tarihte <strong>tüm kampanyaların listesi</strong> ve metrikleri.<br /><br />
+              <strong>Bir satıra tıkla</strong> → o kampanyanın top 5 / bottom 5 ürünü açılır.<br />
+              <strong>"En Çok / En Az Satan 5"</strong> butonu ile yön değişir.<br />
+              <strong>Kolon başlıklarına tıkla</strong> → Excel mantığında sırala (Ciro, ROAS, Spend, vb.).<br /><br />
+              Üstteki arama kutusu kampanya adı, platform veya ürün ile filtreler. Sağdaki "Excel" butonu mevcut filtrelerle indirir.
+            </HelpTooltip>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button

@@ -5,6 +5,7 @@ import { useFilters } from '../context/FilterContext';
 import { kpiAPI } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import DataTable from '../components/DataTable';
+import HelpTooltip from '../components/HelpTooltip';
 
 const fmtTL = (n) => '₺' + Number(n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
 const fmtNum = (n) => Number(n || 0).toLocaleString('tr-TR');
@@ -92,17 +93,36 @@ export default function Overview() {
           <div className="kpi-grid">
             <div className="kpi-card">
               <div className="kpi-card-icon green"><DollarSign size={22} /></div>
-              <div className="kpi-card-label">Toplam Ciro</div>
+              <div className="kpi-card-label">
+                Toplam Ciro
+                <HelpTooltip>
+                  Seçili tarih aralığında <strong>tüm 4 platformdan</strong> (Meta, Google, Organic, Direct) gelen siparişlerin <strong>brüt ciro toplamı</strong>.<br /><br />
+                  Kaynak: <code>orders.order_revenue</code> toplamı. Reklam harcamaları <em>düşülmemiş</em> bürüt değerdir; net kâr için ROAS kartına bak.
+                </HelpTooltip>
+              </div>
               <div className="kpi-card-value">{fmtTL(totals.revenue)}</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-card-icon cyan"><ShoppingCart size={22} /></div>
-              <div className="kpi-card-label">Sipariş Sayısı</div>
+              <div className="kpi-card-label">
+                Sipariş Sayısı
+                <HelpTooltip>
+                  Seçili tarihte oluşturulan <strong>toplam sipariş adedi</strong>.<br /><br />
+                  Kaynak: <code>orders</code> tablosundaki kayıt sayısı. Bir sipariş içinde birden fazla ürün olabilir; ürün adedi için "Ürünler" sayfasına bakın.
+                </HelpTooltip>
+              </div>
               <div className="kpi-card-value">{fmtNum(totals.orders)}</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-card-icon rose"><TrendingUp size={22} /></div>
-              <div className="kpi-card-label">Genel ROAS</div>
+              <div className="kpi-card-label">
+                Genel ROAS
+                <HelpTooltip>
+                  <strong>Return On Ad Spend</strong> = Toplam Ciro ÷ Toplam Reklam Harcaması.<br /><br />
+                  Her 1₺ reklam harcamasının kaç TL döndürdüğünü gösterir. <strong>4x</strong> sektör ortalamasıdır; <strong>5x üstü</strong> başarı, <strong>2x altı</strong> kayıp anlamına gelir.<br /><br />
+                  Kaynak: spend → <code>meta_ads.spend</code> + <code>google_ads.cost_micros/1M</code> toplamı. Ciro → tüm platformların toplamı.
+                </HelpTooltip>
+              </div>
               <div className="kpi-card-value">{fmtX(totals.roas)}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                 Reklam: {fmtTL(totals.adSpend)}
@@ -110,7 +130,13 @@ export default function Overview() {
             </div>
             <div className="kpi-card">
               <div className="kpi-card-icon amber"><Tag size={22} /></div>
-              <div className="kpi-card-label">Ort. Sipariş Değeri</div>
+              <div className="kpi-card-label">
+                Ort. Sipariş Değeri
+                <HelpTooltip>
+                  <strong>AOV (Average Order Value)</strong> = Toplam Ciro ÷ Sipariş Sayısı.<br /><br />
+                  Bir müşterinin tek seferde harcadığı ortalama tutar. Yüksek AOV = sepete daha çok ürün veya daha yüksek fiyatlı ürünler. Cross-sell/upsell stratejilerinin etkisini ölçer.
+                </HelpTooltip>
+              </div>
               <div className="kpi-card-value">{fmtTL(totals.aov)}</div>
             </div>
           </div>
@@ -118,7 +144,13 @@ export default function Overview() {
           <div className="charts-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
             <div className="chart-card">
               <div className="chart-card-header">
-                <div className="chart-card-title">Günlük Ciro Trendi</div>
+                <div className="chart-card-title">
+                  Günlük Ciro Trendi
+                  <HelpTooltip>
+                    Seçili tarih aralığındaki <strong>günlük toplam ciro</strong> (4 platformun toplamı).<br /><br />
+                    Sipariş tarihine göre gruplanır (<code>DATE(orders.order_date)</code>). Trendin tepe ve düşüş noktalarını izleyerek kampanya/sezon etkilerini görebilirsin.
+                  </HelpTooltip>
+                </div>
               </div>
               <ReactApexChart
                 type="area"
@@ -139,7 +171,13 @@ export default function Overview() {
             </div>
             <div className="chart-card">
               <div className="chart-card-header">
-                <div className="chart-card-title">Platform Payı</div>
+                <div className="chart-card-title">
+                  Platform Payı
+                  <HelpTooltip>
+                    Toplam ciroda her platformun <strong>yüzdesel payı</strong>.<br /><br />
+                    Her sipariş, kampanyaya bağlıysa <code>campaigns.platform</code> (Meta/Google), değilse <code>orders.channel</code> (Organic/Direct) baz alınarak sınıflandırılır. Reklam bağımlılığını gösterir: ücretli pay ≥ %50 ise organik yatırım gerekir.
+                  </HelpTooltip>
+                </div>
               </div>
               <ReactApexChart
                 type="donut"
@@ -160,7 +198,14 @@ export default function Overview() {
 
           <div className="card" style={{ marginBottom: 24 }}>
             <div className="card-header">
-              <div className="card-title">Meta vs Google — Hızlı Karşılaştırma</div>
+              <div className="card-title">
+                Meta vs Google — Hızlı Karşılaştırma
+                <HelpTooltip>
+                  İki ana ücretli platformu yan yana karşılaştırır.<br /><br />
+                  <strong>Filtreden bağımsız</strong> — her zaman tüm zaman verisi gösterir, böylece üstteki tarih filtresinden ayrı bir bütünsel görünüm verir.<br /><br />
+                  Hangisinin daha verimli çalıştığını anlamak için <strong>ROAS</strong> ve <strong>AOV</strong> satırlarına bak; yüksek olan platforma bütçe kaydırılabilir.
+                </HelpTooltip>
+              </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Filtreden bağımsız (toplam)</div>
             </div>
             <div className="card-body">
@@ -203,8 +248,13 @@ export default function Overview() {
           </div>
 
           <div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center' }}>
               En İyi 5 Kampanya
+              <HelpTooltip>
+                Seçili tarihteki <strong>tüm kampanyalardan ciro açısından en iyi 5'i</strong>.<br /><br />
+                Sıralama "Ciro" kolonuna göre. Detayı görmek için "Kampanyalar" sayfasına git, oradan kampanyaya tıkla → ürün dökümünü göreceksin.<br /><br />
+                Kolon başlıklarına tıklayarak Excel mantığında sıralayabilirsin (örn. ROAS'a göre).
+              </HelpTooltip>
             </div>
             <DataTable
               rows={data.campaigns?.campaigns || []}
