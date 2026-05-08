@@ -25,6 +25,11 @@ const chatRoutes = require('./routes/chat');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Production'da Caddy reverse proxy arkasındayız.
+// 'trust proxy' = 1 → ilk proxy'nin X-Forwarded-For header'ına güven.
+// Bu olmadan rate-limit tüm kullanıcıları tek IP (Caddy) olarak sayar → erken 429.
+app.set('trust proxy', 1);
+
 // Ensure uploads directory exists
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 if (!fs.existsSync(uploadDir)) {
