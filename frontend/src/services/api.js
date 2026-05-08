@@ -86,6 +86,7 @@ export const importAPI = {
   execute: (data) => api.post('/import/execute', data),
   history: () => api.get('/import/history'),
   errors: (importId) => api.get(`/import/errors/${importId}`),
+  tableStatus: () => api.get('/import/table-status'),
 };
 
 // KPI

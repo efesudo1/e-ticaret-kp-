@@ -22,16 +22,24 @@ export default function Import() {
 
   const fetchTables = async () => {
     try {
-      const [tRes, cRes] = await Promise.all([
-        importAPI.getTables(),
-        dataAPI.overview()
-      ]);
-      setTables(tRes.data);
+      // Yeni endpoint: rowCount + status + lastImport + duplicate bilgisi tek seferde
+      const { data } = await importAPI.tableStatus();
+      // priority'ye göre sırala (priority 1=orders en önemli, 11=channel_mapping en az)
+      // Aynı zamanda boş olanlar üstte
+      const sorted = [...data.tables].sort((a, b) => {
+        // Önce status: empty > low > filled
+        const statusRank = { empty: 0, low: 1, filled: 2, unknown: 3 };
+        const sa = statusRank[a.status] ?? 99;
+        const sb = statusRank[b.status] ?? 99;
+        if (sa !== sb) return sa - sb;
+        return (a.priority || 99) - (b.priority || 99);
+      });
+      setTables(sorted);
       const counts = {};
-      cRes.data.forEach(item => { counts[item.table] = item.count; });
+      sorted.forEach(t => { counts[t.id] = t.rowCount; });
       setTableCounts(counts);
     } catch (err) {
-      console.error(err);
+      console.error('table-status error:', err);
     }
   };
 
@@ -166,68 +174,94 @@ export default function Import() {
               </button>
             </div>
 
-            {/* Supported tables info */}
-            <div style={{ marginTop: 32 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16, color: 'var(--text-secondary)' }}>Desteklenen Veri Tabloları</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {/* Tablo durumu — boş olanlar önce, dolu olanlar sonra */}
+            <div style={{ marginTop: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Veri Tabloları
+                </h3>
+                <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>🟢 Boş (önerilir)</span>
+                  <span>🟡 Az veri</span>
+                  <span>🔵 Dolu</span>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                 {tables.map(t => {
-                  const count = tableCounts[t.id] || 0;
+                  const count = t.rowCount || 0;
+                  const dot = t.status === 'empty' ? '🟢' : t.status === 'low' ? '🟡' : '🔵';
+                  const cardBorderColor = t.status === 'empty'
+                    ? 'rgba(34, 197, 94, 0.4)'
+                    : t.status === 'low'
+                    ? 'rgba(245, 158, 11, 0.4)'
+                    : 'var(--border-color)';
+                  const cardBg = t.status === 'empty'
+                    ? 'rgba(34, 197, 94, 0.04)'
+                    : t.status === 'low'
+                    ? 'rgba(245, 158, 11, 0.04)'
+                    : 'var(--bg-glass)';
+                  const lastImportText = t.lastImport
+                    ? `${new Date(t.lastImport.created_at).toLocaleDateString('tr-TR')} — ${t.lastImport.imported_rows || 0} satır`
+                    : 'henüz import yok';
+
                   return (
-                    <div key={t.id} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-glass)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t.description}</div>
+                    <div key={t.id} style={{
+                      display: 'flex', flexDirection: 'column',
+                      padding: '14px 16px',
+                      background: cardBg,
+                      borderRadius: 'var(--radius-md)',
+                      border: `1px solid ${cardBorderColor}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 18 }}>{t.icon}</span>
+                        <div style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{t.name}</div>
+                        <span title={t.status === 'empty' ? 'Tablo boş, doldurulabilir' : t.status === 'low' ? 'Az veri var' : 'Tablo dolu'}>
+                          {dot}
+                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)', minHeight: 40 }}>
-                        <div style={{ fontSize: 12, color: count > 0 ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                          <strong>{count.toLocaleString('tr-TR')}</strong> satır
-                        </div>
-                        {count > 0 && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {deletingTable === t.id ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  style={{ padding: '2px 8px', fontSize: 11 }}
-                                  disabled={clearing}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleClearTable(t.id);
-                                  }}
-                                >
-                                  Evet, Sil
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-secondary"
-                                  style={{ padding: '2px 8px', fontSize: 11 }}
-                                  disabled={clearing}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeletingTable(null);
-                                  }}
-                                >
-                                  Vazgeç
-                                </button>
-                              </>
-                            ) : (
-                              <button 
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: count > 0 ? 'var(--text-primary)' : 'var(--accent-green)' }}>
+                          {count.toLocaleString('tr-TR')}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>kayıt</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
+                        Son: {lastImportText}
+                      </div>
+                      <div style={{ fontSize: 10, color: t.hasUniqueKey ? 'var(--accent-green)' : 'var(--accent-amber)', marginBottom: 8 }}>
+                        {t.hasUniqueKey ? '✓ Duplicate engellenir' : '⚠ Event tablosu (aynı dosyayı 2 kez yüklemeyin)'}
+                      </div>
+                      {count > 0 && (
+                        <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                          {deletingTable === t.id ? (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
                                 type="button"
-                                className="btn btn-icon-text btn-sm btn-danger-soft" 
-                                style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 6 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeletingTable(t.id);
-                                }}
-                              >
-                                <Trash2 size={12} />
-                                Veriyi Temizle
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                                className="btn btn-sm btn-danger"
+                                style={{ padding: '2px 8px', fontSize: 11, flex: 1 }}
+                                disabled={clearing}
+                                onClick={(e) => { e.stopPropagation(); handleClearTable(t.id); }}
+                              >Evet, Sil</button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: 11 }}
+                                disabled={clearing}
+                                onClick={(e) => { e.stopPropagation(); setDeletingTable(null); }}
+                              >Vazgeç</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-icon-text btn-sm btn-danger-soft"
+                              style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 6, width: '100%', justifyContent: 'center' }}
+                              onClick={(e) => { e.stopPropagation(); setDeletingTable(t.id); }}
+                            >
+                              <Trash2 size={12} /> Veriyi Temizle
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

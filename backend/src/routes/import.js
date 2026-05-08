@@ -275,4 +275,56 @@ router.get('/tables', authenticate, async (req, res) => {
   res.json(tables);
 });
 
+/**
+ * /api/import/table-status
+ * Tüm 11 tablonun anlık durumu: kayıt sayısı, son import, duplicate güvencesi.
+ * Frontend bu bilgiyle "boş, doldurulabilir" / "dolu" gösterir.
+ */
+router.get('/table-status', authenticate, async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const TABLES = [
+      { id: 'orders',                 name: 'Siparişler',           icon: '🛒', priority: 1, hasUniqueKey: true,  duplicateNote: 'order_id ile duplicate engellenir' },
+      { id: 'order_items',            name: 'Sipariş Kalemleri',    icon: '📋', priority: 2, hasUniqueKey: true,  duplicateNote: 'order_id+line_id ile duplicate engellenir' },
+      { id: 'products',               name: 'Ürünler',              icon: '📦', priority: 3, hasUniqueKey: true,  duplicateNote: 'sku ile duplicate engellenir' },
+      { id: 'customers',              name: 'Müşteriler',           icon: '👥', priority: 4, hasUniqueKey: true,  duplicateNote: 'customer_id ile duplicate engellenir' },
+      { id: 'campaigns',              name: 'Kampanyalar',          icon: '📣', priority: 5, hasUniqueKey: true,  duplicateNote: 'campaign_name ile duplicate engellenir' },
+      { id: 'meta_ads',               name: 'Meta Ads',             icon: '📘', priority: 6, hasUniqueKey: false, duplicateNote: 'Aynı dosyayı 2 kez yüklerseniz kayıtlar tekrar girer (event tablosu)' },
+      { id: 'google_ads',             name: 'Google Ads',           icon: '🔵', priority: 7, hasUniqueKey: false, duplicateNote: 'Aynı dosyayı 2 kez yüklerseniz kayıtlar tekrar girer (event tablosu)' },
+      { id: 'meta_ads_breakdowns',    name: 'Meta Ads Kırılımlar',  icon: '📊', priority: 8, hasUniqueKey: false, duplicateNote: 'Event tablosu — duplicate engelleyici yok' },
+      { id: 'ga4_traffic',            name: 'GA4 Trafik',           icon: '📈', priority: 9, hasUniqueKey: false, duplicateNote: 'Event tablosu — duplicate engelleyici yok' },
+      { id: 'ga4_item_interactions',  name: 'GA4 Ürün Etkileşim',   icon: '🛍️', priority: 10, hasUniqueKey: false, duplicateNote: 'Event tablosu — duplicate engelleyici yok' },
+      { id: 'channel_mapping',        name: 'Kanal Eşleme',         icon: '🔗', priority: 11, hasUniqueKey: true,  duplicateNote: 'source+medium ile duplicate engellenir' },
+    ];
+
+    // Her tablo için kayıt sayısı + son import
+    const results = [];
+    for (const t of TABLES) {
+      try {
+        const [countRows] = await db.query(`SELECT COUNT(*) AS c FROM \`${t.id}\``);
+        const [lastImport] = await db.query(
+          `SELECT created_at, imported_rows, duplicate_rows, status
+           FROM import_logs WHERE target_table = ? ORDER BY created_at DESC LIMIT 1`,
+          [t.id]
+        );
+        const rowCount = Number(countRows[0]?.c || 0);
+        results.push({
+          ...t,
+          rowCount,
+          status: rowCount === 0 ? 'empty' : rowCount < 100 ? 'low' : 'filled',
+          lastImport: lastImport[0] || null,
+        });
+      } catch (err) {
+        // Tablo bulunamadıysa skip
+        results.push({ ...t, rowCount: 0, status: 'unknown', error: err.message });
+      }
+    }
+
+    res.json({ tables: results });
+  } catch (error) {
+    console.error('table-status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
