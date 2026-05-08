@@ -1534,6 +1534,125 @@ input, select, textarea {
 }
 
 /* ============================================================
+   Karar Merkezi — Tabbed kart layout
+   ============================================================ */
+.dc-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) { .dc-cards-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .dc-cards-grid { grid-template-columns: 1fr; } }
+
+.dc-card {
+  position: relative;
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  overflow: hidden;
+}
+
+.dc-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--dc-color, var(--accent-red));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.dc-card:hover {
+  border-color: var(--dc-color, var(--accent-red));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.dc-card:hover::before {
+  opacity: 0.5;
+}
+
+.dc-card-active {
+  border-color: var(--dc-color, var(--accent-red));
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--dc-color, var(--accent-red)) 8%, transparent),
+    var(--bg-card));
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4),
+              0 0 0 1px var(--dc-color, var(--accent-red));
+}
+
+.dc-card-active::before {
+  opacity: 1;
+}
+
+.dc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.dc-card-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--dc-color, var(--accent-red)) 15%, transparent);
+  color: var(--dc-color, var(--accent-red));
+  display: flex; align-items: center; justify-content: center;
+}
+
+.dc-card-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dc-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+
+.dc-card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 10px;
+}
+
+.dc-card-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.dc-detail-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  animation: dcPanelIn 250ms ease-out;
+}
+
+@keyframes dcPanelIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
    ChatWidget — Sağ alt floating AI asistan
    ============================================================ */
 .chat-fab {
