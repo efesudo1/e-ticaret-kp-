@@ -29,38 +29,45 @@ const computePresetFromAnchor = (preset, anchorDate) => {
 const DEFAULT_PRESET = '30d';
 
 export function FilterProvider({ children }) {
-  const todayInit = computePresetFromAnchor(DEFAULT_PRESET, new Date());
+  // İlk açılışta anchor henüz yok → 'all' (tüm zaman) ile başla.
+  // Bu, "son 30 gün bugünden hesaplanır → veri yok → 0" sorununu çözer.
+  // Anchor (data maxDate) gelince otomatik DEFAULT_PRESET'e (30g) kaymak için ayrı useEffect.
   const [filters, setFilters] = useState({
-    startDate: todayInit.startDate,
-    endDate: todayInit.endDate,
+    startDate: '',
+    endDate: '',
     channel: '',
     campaign: '',
     device: '',
     city: '',
     brand: '',
     category: '',
-    preset: DEFAULT_PRESET,
+    preset: 'all',
     platform: 'all',  // 'all' | 'meta' | 'google'
   });
-  const [anchorDate, setAnchorDate] = useState(new Date());
+  const [anchorDate, setAnchorDate] = useState(null);
+  const [autoApplied, setAutoApplied] = useState(false);
 
-  // Backend'den veri tarih aralığını çek, default'u onun maxDate'ine göre kaydır.
-  // Veri eski olabilir (örn. 2024-10 / 2025-03), bugünden gerisi boş çıkar.
+  // Backend'den veri max tarihini çek, anchor olarak ayarla.
+  // İlk anchor geldiğinde (kullanıcı henüz preset değiştirmediyse) son 30 güne otomatik kaydır.
   useEffect(() => {
     let cancelled = false;
     filterAPI.options()
       .then(({ data }) => {
         const max = data?.dateRange?.maxDate;
         if (!max || cancelled) return;
-        // max formatı YYYYMMDD veya YYYY-MM-DD olabilir
         const cleaned = String(max).replace(/-/g, '');
         const parsed = parseYYYYMMDD(cleaned);
         if (!parsed) return;
         setAnchorDate(parsed);
-        const range = computePresetFromAnchor(DEFAULT_PRESET, parsed);
-        setFilters(prev => ({ ...prev, startDate: range.startDate, endDate: range.endDate }));
+        // Sadece kullanıcı henüz manuel preset seçmediyse otomatik 30g'ye kay
+        setFilters(prev => {
+          if (prev.preset !== 'all' || prev.startDate || prev.endDate) return prev; // dokunma
+          const range = computePresetFromAnchor(DEFAULT_PRESET, parsed);
+          return { ...prev, startDate: range.startDate, endDate: range.endDate, preset: DEFAULT_PRESET };
+        });
+        setAutoApplied(true);
       })
-      .catch(() => { /* sessizce yut, default kalır */ });
+      .catch(() => { /* sessizce yut, 'all' kalır → backend tüm zamanı döner, veri yine var */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -78,7 +85,14 @@ export function FilterProvider({ children }) {
       setFilters(prev => ({ ...prev, preset: 'custom' }));
       return;
     }
-    const range = computePresetFromAnchor(preset, anchorDate);
+    if (preset === 'all') {
+      setFilters(prev => ({ ...prev, startDate: '', endDate: '', preset: 'all' }));
+      return;
+    }
+    // Preset'ler için anchor şart — anchor henüz yoksa anchor gelene kadar 'all' bırakma yerine bugünden hesapla.
+    // Anchor genelde mount'tan ~200ms sonra geliyor, bu durum nadirdir.
+    const useAnchor = anchorDate || new Date();
+    const range = computePresetFromAnchor(preset, useAnchor);
     setFilters(prev => ({
       ...prev,
       startDate: range.startDate,
@@ -102,19 +116,20 @@ export function FilterProvider({ children }) {
   }, []);
 
   const resetFilters = useCallback(() => {
-    const range = computePresetFromAnchor(DEFAULT_PRESET, anchorDate);
-    setFilters({
-      startDate: range.startDate,
-      endDate: range.endDate,
-      channel: '',
-      campaign: '',
-      device: '',
-      city: '',
-      brand: '',
-      category: '',
-      preset: DEFAULT_PRESET,
+    const baseFields = {
+      channel: '', campaign: '', device: '', city: '', brand: '', category: '',
       platform: 'all',
-    });
+    };
+    if (anchorDate) {
+      const range = computePresetFromAnchor(DEFAULT_PRESET, anchorDate);
+      setFilters({
+        ...baseFields,
+        startDate: range.startDate, endDate: range.endDate, preset: DEFAULT_PRESET,
+      });
+    } else {
+      // Anchor yoksa 'all' (tüm zaman) — veri her zaman dolu
+      setFilters({ ...baseFields, startDate: '', endDate: '', preset: 'all' });
+    }
   }, [anchorDate]);
 
   const activeFilters = Object.entries(filters)

@@ -122,7 +122,8 @@
       "Bash(grep -n \"new Date\\(\\\\`\\\\${startDate\" \"/Users/efe49/Desktop/projects/e ticaret kğpı dashboard/backend/src/services/kpiService.js\")",
       "Bash(curl -v http://localhost:3000/api/health)",
       "Bash(ssh -i '~/.ssh/kpi_dashboard_deploy' deploy@167.172.183.247 'docker ps --format '\\\\''table {{.Names}}\\\\t{{.Status}}'\\\\''')",
-      "Bash(ssh -i '~/.ssh/kpi_dashboard_deploy' deploy@167.172.183.247 'docker logs --since=10m kpi_backend 2>&1 | grep -iE '\\\\''error|exception|fail|crash|500'\\\\'' | tail -20')"
+      "Bash(ssh -i '~/.ssh/kpi_dashboard_deploy' deploy@167.172.183.247 'docker logs --since=10m kpi_backend 2>&1 | grep -iE '\\\\''error|exception|fail|crash|500'\\\\'' | tail -20')",
+      "Bash(ssh -i '~/.ssh/kpi_dashboard_deploy' deploy@167.172.183.247 'docker logs --since=2m kpi_backend 2>&1 | tail -15')"
     ],
     "additionalDirectories": [
       "/Users/efe49/Desktop/projects/e ticaret kğpı dashboard"
