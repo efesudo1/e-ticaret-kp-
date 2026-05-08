@@ -156,4 +156,70 @@ router.delete('/:table/clear', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * /api/data/clear-all
+ * Tüm 11 import tablosunu tek seferde temizler.
+ * users, audit_log, import_logs, import_errors korunur.
+ * Body: { confirm: "DELETE_ALL" } onay zorunlu.
+ */
+router.delete('/clear-all', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Sadece admin tüm veriyi silebilir' });
+    }
+    const { confirm } = req.body || {};
+    if (confirm !== 'DELETE_ALL') {
+      return res.status(400).json({ error: 'Onay eksik: body.confirm = "DELETE_ALL" olmalı' });
+    }
+
+    // FK sırasını gözeterek (parent → child)
+    const TABLES = [
+      // Önce child tablolar (FK referansı tutanlar)
+      'order_items',           // → orders
+      // Sonra parent tablolar
+      'orders',
+      'customers',
+      'products',
+      'campaigns',
+      'meta_ads',
+      'meta_ads_breakdowns',
+      'google_ads',
+      'ga4_traffic',
+      'ga4_item_interactions',
+      'channel_mapping',
+    ];
+
+    await db.query('SET FOREIGN_KEY_CHECKS = 0');
+    const results = [];
+    try {
+      for (const table of TABLES) {
+        const [countBefore] = await db.query(`SELECT COUNT(*) AS c FROM \`${table}\``);
+        const before = Number(countBefore[0].c);
+        await db.query(`TRUNCATE TABLE \`${table}\``);
+        results.push({ table, deleted: before });
+      }
+    } finally {
+      await db.query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    // Cache temizliği
+    const patterns = ['kpi:*', 'import:*', 'data:*'];
+    for (const pattern of patterns) {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) await redis.del(...keys);
+    }
+
+    const totalDeleted = results.reduce((s, r) => s + r.deleted, 0);
+    res.json({
+      message: `Tüm tablolar temizlendi (toplam ${totalDeleted.toLocaleString('tr-TR')} kayıt silindi)`,
+      results,
+      totalDeleted,
+    });
+  } catch (error) {
+    await db.query('SET FOREIGN_KEY_CHECKS = 1').catch(() => {});
+    console.error('clear-all error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

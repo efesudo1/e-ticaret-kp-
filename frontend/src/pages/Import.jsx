@@ -19,21 +19,13 @@ export default function Import() {
   const [tableCounts, setTableCounts] = useState({});
   const [deletingTable, setDeletingTable] = useState(null);
   const [clearing, setClearing] = useState(false);
+  const [clearAllStage, setClearAllStage] = useState(0); // 0: idle, 1: ilk onay, 2: ikinci onay, 3: çalışıyor
 
   const fetchTables = async () => {
     try {
-      // Yeni endpoint: rowCount + status + lastImport + duplicate bilgisi tek seferde
       const { data } = await importAPI.tableStatus();
-      // priority'ye göre sırala (priority 1=orders en önemli, 11=channel_mapping en az)
-      // Aynı zamanda boş olanlar üstte
-      const sorted = [...data.tables].sort((a, b) => {
-        // Önce status: empty > low > filled
-        const statusRank = { empty: 0, low: 1, filled: 2, unknown: 3 };
-        const sa = statusRank[a.status] ?? 99;
-        const sb = statusRank[b.status] ?? 99;
-        if (sa !== sb) return sa - sb;
-        return (a.priority || 99) - (b.priority || 99);
-      });
+      // Sabit priority sırasına göre listele (önerme yok, doğal sıra)
+      const sorted = [...data.tables].sort((a, b) => (a.priority || 99) - (b.priority || 99));
       setTables(sorted);
       const counts = {};
       sorted.forEach(t => { counts[t.id] = t.rowCount; });
@@ -60,6 +52,20 @@ export default function Import() {
       toast.error('Hata: ' + (err.response?.data?.error || err.message), { id: 'clear' });
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleClearAll = async () => {
+    setClearAllStage(3);
+    const tid = toast.loading('Tüm veriler siliniyor...');
+    try {
+      const { data } = await dataAPI.clearAll('DELETE_ALL');
+      toast.success(`Toplam ${data.totalDeleted.toLocaleString('tr-TR')} kayıt silindi`, { id: tid, duration: 5000 });
+      setClearAllStage(0);
+      fetchTables();
+    } catch (err) {
+      toast.error('Hata: ' + (err.response?.data?.error || err.message), { id: tid });
+      setClearAllStage(0);
     }
   };
 
@@ -159,6 +165,69 @@ export default function Import() {
       </div>
 
       {/* Step 0: Upload */}
+      {/* Tüm Verileri Temizle — 2-aşamalı onay modal'ı */}
+      {clearAllStage > 0 && (
+        <div className="modal-overlay" onClick={() => clearAllStage < 3 && setClearAllStage(0)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color: 'var(--accent-red)' }}>
+                <AlertCircle size={20} /> {clearAllStage === 3 ? 'Siliniyor...' : 'Tüm Verileri Temizle'}
+              </div>
+            </div>
+            <div className="modal-body">
+              {clearAllStage === 1 && (
+                <>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 14, lineHeight: 1.6 }}>
+                    Bu işlem <strong style={{ color: 'var(--accent-red)' }}>11 tablodaki tüm verileri</strong> kalıcı olarak siler:
+                  </div>
+                  <ul style={{ margin: '0 0 14px 0', padding: '0 0 0 20px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                    <li>Siparişler, Sipariş Kalemleri, Müşteriler</li>
+                    <li>Ürünler, Kampanyalar</li>
+                    <li>Meta Ads, Google Ads, GA4 Trafik, GA4 Ürün Etkileşim</li>
+                    <li>Meta Ads Kırılımlar, Kanal Eşleme</li>
+                  </ul>
+                  <div style={{ padding: 12, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.3)', borderRadius: 'var(--radius-sm)', fontSize: 12, color: 'var(--text-primary)', marginBottom: 8 }}>
+                    ℹ️ Kullanıcılar, izinler ve import logları korunur. Bu işlem geri alınamaz.
+                  </div>
+                </>
+              )}
+              {clearAllStage === 2 && (
+                <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                  Son onay: tüm import edilmiş veri tablolarını silmek istiyor musunuz?
+                  <div style={{ marginTop: 10, color: 'var(--accent-red)', fontWeight: 600 }}>
+                    Bu işlem geri alınamaz.
+                  </div>
+                </div>
+              )}
+              {clearAllStage === 3 && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>
+                  Tablolar temizleniyor, lütfen bekleyin...
+                </div>
+              )}
+            </div>
+            {clearAllStage < 3 && (
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary-mini" onClick={() => setClearAllStage(0)}>
+                  Vazgeç
+                </button>
+                {clearAllStage === 1 && (
+                  <button type="button" className="btn-primary-mini" style={{ background: 'var(--accent-red)' }}
+                          onClick={() => setClearAllStage(2)}>
+                    Devam Et →
+                  </button>
+                )}
+                {clearAllStage === 2 && (
+                  <button type="button" className="btn-primary-mini" style={{ background: 'var(--accent-red)' }}
+                          onClick={handleClearAll}>
+                    Evet, Tümünü Sil
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {step === 0 && (
         <div className="card animate-fade-in">
           <div className="card-body">
@@ -174,17 +243,21 @@ export default function Import() {
               </button>
             </div>
 
-            {/* Tablo durumu — boş olanlar önce, dolu olanlar sonra */}
+            {/* Tablo durumu */}
             <div style={{ marginTop: 28 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
                   Veri Tabloları
                 </h3>
-                <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-muted)' }}>
-                  <span>🟢 Boş (önerilir)</span>
-                  <span>🟡 Az veri</span>
-                  <span>🔵 Dolu</span>
-                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={() => setClearAllStage(1)}
+                  disabled={clearAllStage > 0}
+                >
+                  <Trash2 size={13} /> Tüm Verileri Temizle
+                </button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                 {tables.map(t => {

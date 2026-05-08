@@ -125,6 +125,7 @@ export const dataAPI = {
   count: (table) => api.get(`/data/${table}/count`),
   overview: () => api.get('/data/overview/tables'),
   clearTable: (table) => api.delete(`/data/${table}/clear`),
+  clearAll: (confirm) => api.delete('/data/clear-all', { data: { confirm } }),
 };
 
 // Filters
