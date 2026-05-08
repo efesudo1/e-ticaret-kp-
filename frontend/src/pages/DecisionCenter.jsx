@@ -38,7 +38,17 @@ export default function DecisionCenter() {
     );
   }
 
-  const { status, profitable, losing, noAdStars, pareto, abandonedProducts, rising, falling, runningOut, overstocked } = data;
+  // Defensive: backend boş döndürürse undefined'a düşmesin
+  const status = data.status || {};
+  const profitable = data.profitable || [];
+  const losing = data.losing || [];
+  const noAdStars = data.noAdStars || [];
+  const pareto = data.pareto || { top: [], ratio: 0, totalCampaigns: 0 };
+  const abandonedProducts = data.abandonedProducts || [];
+  const rising = data.rising || [];
+  const falling = data.falling || [];
+  const runningOut = data.runningOut || [];
+  const overstocked = data.overstocked || [];
 
   return (
     <div className="page-container animate-fade-in">
@@ -74,27 +84,27 @@ export default function DecisionCenter() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           <BigStat
             label="Mevcut Ciro"
-            value={fmtTL(status.currentRevenue)}
-            sub={status.revenueChange >= 0
-              ? <span style={{ color: 'var(--accent-green)' }}><ArrowUpRight size={12} /> %{status.revenueChange} (önceki dönem)</span>
-              : <span style={{ color: 'var(--accent-red)' }}><ArrowDownRight size={12} /> %{Math.abs(status.revenueChange)} (önceki dönem)</span>}
+            value={fmtTL(status.currentRevenue || 0)}
+            sub={(status.revenueChange ?? 0) >= 0
+              ? <span style={{ color: 'var(--accent-green)' }}><ArrowUpRight size={12} /> %{status.revenueChange ?? 0} (önceki dönem)</span>
+              : <span style={{ color: 'var(--accent-red)' }}><ArrowDownRight size={12} /> %{Math.abs(status.revenueChange ?? 0)} (önceki dönem)</span>}
           />
           <BigStat
             label="Hedef"
-            value={fmtTL(status.goal)}
-            sub={`${status.goalProgress >= 100 ? '🎉' : status.goalProgress >= 70 ? '🟢' : status.goalProgress >= 50 ? '🟡' : '🔴'} %${status.goalProgress} tamamlandı`}
+            value={fmtTL(status.goal || 0)}
+            sub={`${(status.goalProgress ?? 0) >= 100 ? '🎉' : (status.goalProgress ?? 0) >= 70 ? '🟢' : (status.goalProgress ?? 0) >= 50 ? '🟡' : '🔴'} %${status.goalProgress ?? 0} tamamlandı`}
           />
           <BigStat
             label="Sonraki 30 Gün Tahmini"
-            value={fmtTL(status.forecast30Days)}
-            sub={`Günlük ortalama: ${fmtTL(status.dailyAverage)}`}
+            value={fmtTL(status.forecast30Days || 0)}
+            sub={`Günlük ortalama: ${fmtTL(status.dailyAverage || 0)}`}
             color="var(--accent-amber)"
           />
           <BigStat
             label="Sipariş Sayısı"
-            value={fmtNum(status.currentOrders)}
-            sub={status.currentOrders > 0
-              ? `Ortalama: ${fmtTL(Math.round(status.currentRevenue / status.currentOrders))} / sipariş`
+            value={fmtNum(status.currentOrders || 0)}
+            sub={(status.currentOrders || 0) > 0
+              ? `Ortalama: ${fmtTL(Math.round((status.currentRevenue || 0) / status.currentOrders))} / sipariş`
               : ''}
           />
         </div>
@@ -106,10 +116,11 @@ export default function DecisionCenter() {
             overflow: 'hidden', border: '1px solid var(--border-color)',
           }}>
             <div style={{
-              height: '100%', width: `${Math.min(100, status.goalProgress)}%`,
-              background: status.goalProgress >= 100
+              height: '100%',
+              width: `${Math.min(100, Math.max(0, status.goalProgress || 0))}%`,
+              background: (status.goalProgress || 0) >= 100
                 ? 'var(--gradient-success)'
-                : status.goalProgress >= 70
+                : (status.goalProgress || 0) >= 70
                 ? 'var(--gradient-warning)'
                 : 'var(--gradient-primary)',
               transition: 'width 0.5s ease',
@@ -322,7 +333,7 @@ export default function DecisionCenter() {
             color="var(--accent-red)" icon={<AlertTriangle size={16} />}
             title={`🚨 Tükeniyor (${runningOut.length})`}
             action={runningOut.length > 0
-              ? `Acil sipariş ver. Bu ürünler tükenirse ortalama günlük ${fmtTL(runningOut.reduce((s, p) => s + p.dailyVelocity * 1000, 0))} satış kaybı yaşanabilir.`
+              ? `Acil sipariş ver. Bu ürünler tükenirse günlük satış velocity'si toplam ${runningOut.reduce((s, p) => s + (p.dailyVelocity || 0), 0).toFixed(1)} adet kayba yol açar.`
               : 'Stoklar şu an güvende.'}
           >
             {runningOut.map(p => (

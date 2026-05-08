@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import DecisionCenter from './pages/DecisionCenter';
 import { hasPermission, PAGE_PERMISSIONS } from './lib/permissions';
 import { ShieldOff } from 'lucide-react';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -28,7 +29,7 @@ function ProtectedRoute({ children }) {
 function PermissionRoute({ permKey, children }) {
   const { user } = useAuth();
   if (!hasPermission(user, permKey)) return <ForbiddenPage />;
-  return children;
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
 function ForbiddenPage() {
