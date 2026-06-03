@@ -91,6 +91,18 @@ const swaggerOptions = {
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Canlı veri header'ı: KPI/dashboard yanıtları ASLA tarayıcıda cache'lenmesin.
+// Aksi halde ETag/304 ile eski (örn. boş ₺0) yanıt gösterilebilir; filtre değişince
+// yeni veri gelse de tarayıcı eskiyi gösterir. Sunucu tarafı Redis cache'i etkilenmez.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+// Express'in otomatik ETag üretimini kapat (304 yanıtlarını tamamen engeller).
+app.set('etag', false);
+
 // API Routes
 const { authenticate } = require('./middleware/auth');
 const { requirePermission, requirePermissionForMutations } = require('./middleware/permissions');
