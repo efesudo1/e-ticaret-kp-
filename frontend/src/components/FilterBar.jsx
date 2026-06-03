@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Calendar, X, ChevronDown } from 'lucide-react';
+import { Calendar, X, ChevronDown, Database, Clock } from 'lucide-react';
 import { useFilters } from '../context/FilterContext';
 import { filterAPI } from '../services/api';
 
@@ -31,7 +31,8 @@ const PLATFORMS = [
 ];
 
 export default function FilterBar({ showChannel = true, showDevice = true, showBrand = false, showCategory = false, showPlatform = true }) {
-  const { filters, updateFilter, applyPreset, applyMonth, resetFilters, anchorDate } = useFilters();
+  const { filters, updateFilter, applyPreset, applyMonth, resetFilters,
+          anchorDate, anchorMode, setAnchorMode, effectiveAnchor } = useFilters();
   const [options, setOptions] = useState({
     channels: [], devices: [], brands: [], categories: [],
     minDate: null, maxDate: null,
@@ -97,12 +98,39 @@ export default function FilterBar({ showChannel = true, showDevice = true, showB
     setMonthOpen(false);
   };
 
-  const anchorLabel = anchorDate
-    ? `Veri kaynağı: ${anchorDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+  const anchorRefDate = anchorMode === 'today' ? new Date() : anchorDate;
+  const anchorLabel = anchorRefDate
+    ? `${anchorMode === 'today' ? 'Bugün' : 'Veri kaynağı'}: ${anchorRefDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}`
     : '';
 
   return (
     <div className="filter-bar">
+      {/* Anchor mode toggle: "Son N gün" hesaplamasının başlangıç noktası */}
+      <div className="anchor-toggle" role="radiogroup" aria-label="Tarih referansı">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={anchorMode === 'data'}
+          className={`anchor-toggle-btn ${anchorMode === 'data' ? 'active' : ''}`}
+          onClick={() => setAnchorMode('data')}
+          title="'Son N gün' hesaplamasını veride en son eklenen günden geriye sayar — statik snapshot için doğru seçim."
+        >
+          <Database size={13} />
+          <span>Son veriden</span>
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={anchorMode === 'today'}
+          className={`anchor-toggle-btn ${anchorMode === 'today' ? 'active' : ''}`}
+          onClick={() => setAnchorMode('today')}
+          title="'Son N gün' hesaplamasını bugünden geriye sayar — canlı veri akışı için doğru seçim."
+        >
+          <Clock size={13} />
+          <span>Bugünden</span>
+        </button>
+      </div>
+
       <div className="filter-presets">
         {PRESETS.map(p => (
           <button

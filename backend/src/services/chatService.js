@@ -311,14 +311,21 @@ class ChatService {
 
     while (iteration < maxIterations) {
       iteration++;
-      const response = await this.ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-        contents,
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          tools: TOOLS,
-        },
-      });
+      // Sergi/demo güvenliği: Gemini yanıt vermezse 15s'de iptal et,
+      // chat balonu sonsuz "yazıyor..." gösterip izleyicinin önünde takılmasın.
+      const response = await Promise.race([
+        this.ai.models.generateContent({
+          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          contents,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            tools: TOOLS,
+          },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini API zaman aşımı (15s)')), 15000)
+        ),
+      ]);
 
       const candidate = response.candidates?.[0];
       const parts = candidate?.content?.parts || [];

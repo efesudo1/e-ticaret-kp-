@@ -530,44 +530,67 @@ class KpiService {
    * Marketing Performance KPIs
    */
   async getMarketingKpis(filters = {}) {
-    // CAC (Customer Acquisition Cost)
-    const [totalSpend] = await db.query(`
-      SELECT
-        (SELECT COALESCE(SUM(spend), 0) FROM meta_ads) +
-        (SELECT COALESCE(SUM(cost_micros), 0) / 1000000 FROM google_ads) as totalAdSpend
-    `);
+    // Ad spend - meta_ads.date_start ve google_ads.date filtreli
+    const metaCond = [];
+    const metaP = [];
+    if (filters.startDate) { metaCond.push('date_start >= ?'); metaP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { metaCond.push('date_start <= ?'); metaP.push(this.formatDateForSQL(filters.endDate)); }
+    const metaWhere = metaCond.length ? 'WHERE ' + metaCond.join(' AND ') : '';
+
+    const gadsCond = [];
+    const gadsP = [];
+    if (filters.startDate) { gadsCond.push('date >= ?'); gadsP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { gadsCond.push('date <= ?'); gadsP.push(this.formatDateForSQL(filters.endDate)); }
+    const gadsWhere = gadsCond.length ? 'WHERE ' + gadsCond.join(' AND ') : '';
+
+    const [metaSpendRow] = await db.query(`SELECT COALESCE(SUM(spend), 0) as s FROM meta_ads ${metaWhere}`, metaP);
+    const [gadsSpendRow] = await db.query(`SELECT COALESCE(SUM(cost_micros), 0) / 1000000 as s FROM google_ads ${gadsWhere}`, gadsP);
+    const totalAdSpendVal = Number(metaSpendRow[0].s || 0) + Number(gadsSpendRow[0].s || 0);
+
+    // CAC: yeni müşteriler = seçilen aralıkta first_order yapanlar
+    const custCond = [];
+    const custP = [];
+    if (filters.startDate) { custCond.push('first_order_date >= ?'); custP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { custCond.push('first_order_date <= ?'); custP.push(this.formatDateForSQL(filters.endDate)); }
+    const custBaseWhere = custCond.length ? custCond.join(' AND ') + ' AND total_orders >= 1' : 'total_orders >= 1';
 
     const [newCustomers] = await db.query(`
       SELECT COUNT(DISTINCT customer_id) as count
-      FROM customers WHERE total_orders >= 1
-    `);
+      FROM customers WHERE ${custBaseWhere}
+    `, custP);
 
     const cac = newCustomers[0].count > 0
-      ? totalSpend[0].totalAdSpend / newCustomers[0].count
+      ? totalAdSpendVal / newCustomers[0].count
       : 0;
 
-    // CLV (Customer Lifetime Value)
+    // CLV - filtreli aralık içinde first_order yapanların CLV'si
     const [clvData] = await db.query(`
       SELECT
         AVG(total_revenue) as avgCLV,
         AVG(total_orders) as avgOrders,
         COUNT(*) as totalCustomers
-      FROM customers WHERE total_orders > 0
-    `);
+      FROM customers WHERE ${custCond.length ? custCond.join(' AND ') + ' AND total_orders > 0' : 'total_orders > 0'}
+    `, custP);
 
-    // Repeat purchase rate
+    // Repeat purchase rate - aynı kohort
     const [repeatData] = await db.query(`
       SELECT
         COUNT(CASE WHEN total_orders > 1 THEN 1 END) as repeatCustomers,
         COUNT(CASE WHEN total_orders >= 1 THEN 1 END) as totalCustomers
-      FROM customers
-    `);
+      FROM customers ${custCond.length ? 'WHERE ' + custCond.join(' AND ') : ''}
+    `, custP);
 
     const repeatRate = repeatData[0].totalCustomers > 0
       ? repeatData[0].repeatCustomers / repeatData[0].totalCustomers
       : 0;
 
-    // Channel attribution
+    // Channel attribution - orders.order_date YYYYMMDD
+    const ordCond = [];
+    const ordP = [];
+    if (filters.startDate) { ordCond.push("DATE_FORMAT(order_date,'%Y%m%d') >= ?"); ordP.push(filters.startDate); }
+    if (filters.endDate) { ordCond.push("DATE_FORMAT(order_date,'%Y%m%d') <= ?"); ordP.push(filters.endDate); }
+    const ordWhere = ordCond.length ? 'WHERE ' + ordCond.join(' AND ') : '';
+
     const [channelAttribution] = await db.query(`
       SELECT
         channel,
@@ -575,9 +598,10 @@ class KpiService {
         SUM(order_revenue) as revenue,
         COUNT(DISTINCT customer_id) as uniqueCustomers
       FROM orders
+      ${ordWhere}
       GROUP BY channel
       ORDER BY revenue DESC
-    `);
+    `, ordP);
 
     return {
       cac,
@@ -621,6 +645,12 @@ class KpiService {
    * Cohort Analysis
    */
   async getCohortAnalysis(filters = {}) {
+    // Cohort = first_order_date'in ayı; aralığa düşen kohortları göster
+    const cond = ['c.first_order_date IS NOT NULL', 'LENGTH(TRIM(c.first_order_date)) >= 10', 'c.total_orders >= 1'];
+    const params = [];
+    if (filters.startDate) { cond.push('TRIM(c.first_order_date) >= ?'); params.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { cond.push('TRIM(c.first_order_date) <= ?'); params.push(this.formatDateForSQL(filters.endDate)); }
+
     const [cohorts] = await db.query(`
       SELECT
         SUBSTRING(TRIM(c.first_order_date), 1, 7) as cohort_month,
@@ -629,10 +659,10 @@ class KpiService {
         AVG(c.total_revenue) as avg_revenue,
         COUNT(CASE WHEN c.total_orders > 1 THEN 1 END) as repeat_customers
       FROM customers c
-      WHERE c.first_order_date IS NOT NULL AND LENGTH(TRIM(c.first_order_date)) >= 10 AND c.total_orders >= 1
+      WHERE ${cond.join(' AND ')}
       GROUP BY SUBSTRING(TRIM(c.first_order_date), 1, 7)
       ORDER BY cohort_month
-    `);
+    `, params);
 
     return cohorts;
   }
@@ -643,6 +673,8 @@ class KpiService {
   async getHeatmapData(filters = {}) {
     const conditions = [];
     const params = [];
+    if (filters.startDate) { conditions.push("DATE_FORMAT(order_date,'%Y%m%d') >= ?"); params.push(filters.startDate); }
+    if (filters.endDate) { conditions.push("DATE_FORMAT(order_date,'%Y%m%d') <= ?"); params.push(filters.endDate); }
     if (filters.channel) { conditions.push('channel = ?'); params.push(filters.channel); }
     const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -664,7 +696,13 @@ class KpiService {
    * Channel Comparison (ROAS, spend, revenue per channel)
    */
   async getChannelComparison(filters = {}) {
-    // GA4 channel performance
+    // GA4 channel performance - date filter
+    const ga4Cond = [];
+    const ga4P = [];
+    if (filters.startDate) { ga4Cond.push('date >= ?'); ga4P.push(filters.startDate); }
+    if (filters.endDate) { ga4Cond.push('date <= ?'); ga4P.push(filters.endDate); }
+    const ga4Where = ga4Cond.length ? 'WHERE ' + ga4Cond.join(' AND ') : '';
+
     const [ga4Channels] = await db.query(`
       SELECT
         sessionDefaultChannelGroup as channel,
@@ -673,11 +711,18 @@ class KpiService {
         SUM(conversions) as conversions,
         SUM(purchaseRevenue) as revenue
       FROM ga4_traffic
+      ${ga4Where}
       GROUP BY sessionDefaultChannelGroup
       ORDER BY revenue DESC
-    `);
+    `, ga4P);
 
-    // Orders by channel
+    // Orders by channel - order_date YYYYMMDD
+    const ordCond = [];
+    const ordP = [];
+    if (filters.startDate) { ordCond.push("DATE_FORMAT(order_date,'%Y%m%d') >= ?"); ordP.push(filters.startDate); }
+    if (filters.endDate) { ordCond.push("DATE_FORMAT(order_date,'%Y%m%d') <= ?"); ordP.push(filters.endDate); }
+    const ordWhere = ordCond.length ? 'WHERE ' + ordCond.join(' AND ') : '';
+
     const [orderChannels] = await db.query(`
       SELECT
         channel,
@@ -687,9 +732,10 @@ class KpiService {
         AVG(order_revenue) as avgOrderValue,
         COUNT(DISTINCT customer_id) as uniqueCustomers
       FROM orders
+      ${ordWhere}
       GROUP BY channel
       ORDER BY revenue DESC
-    `);
+    `, ordP);
 
     return { ga4Channels, orderChannels };
   }
@@ -698,7 +744,13 @@ class KpiService {
    * Campaign Performance
    */
   async getCampaignPerformance(filters = {}) {
-    // Meta campaigns
+    // Meta campaigns - date_start üzerinden filtrele
+    const metaCond = [];
+    const metaP = [];
+    if (filters.startDate) { metaCond.push('date_start >= ?'); metaP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { metaCond.push('date_start <= ?'); metaP.push(this.formatDateForSQL(filters.endDate)); }
+    const metaWhere = metaCond.length ? 'WHERE ' + metaCond.join(' AND ') : '';
+
     const [metaCampaigns] = await db.query(`
       SELECT
         campaign_name,
@@ -712,11 +764,18 @@ class KpiService {
         CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)/SUM(impressions)*100 ELSE 0 END as ctr,
         CASE WHEN SUM(clicks) > 0 THEN SUM(spend)/SUM(clicks) ELSE 0 END as cpc
       FROM meta_ads
+      ${metaWhere}
       GROUP BY campaign_name
       ORDER BY spend DESC
-    `);
+    `, metaP);
 
-    // Google campaigns
+    // Google campaigns - date üzerinden filtrele
+    const gadsCond = [];
+    const gadsP = [];
+    if (filters.startDate) { gadsCond.push('date >= ?'); gadsP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { gadsCond.push('date <= ?'); gadsP.push(this.formatDateForSQL(filters.endDate)); }
+    const gadsWhere = gadsCond.length ? 'WHERE ' + gadsCond.join(' AND ') : '';
+
     const [googleCampaigns] = await db.query(`
       SELECT
         campaign_name,
@@ -730,9 +789,10 @@ class KpiService {
         CASE WHEN SUM(impressions) > 0 THEN SUM(clicks)/SUM(impressions)*100 ELSE 0 END as ctr,
         CASE WHEN SUM(clicks) > 0 THEN (SUM(cost_micros)/1000000)/SUM(clicks) ELSE 0 END as cpc
       FROM google_ads
+      ${gadsWhere}
       GROUP BY campaign_name
       ORDER BY spend DESC
-    `);
+    `, gadsP);
 
     return {
       campaigns: [...metaCampaigns, ...googleCampaigns].sort((a, b) => (b.spend || 0) - (a.spend || 0))
@@ -743,6 +803,20 @@ class KpiService {
    * Product Performance
    */
   async getProductPerformance(filters = {}) {
+    // Sales (order_items + orders join) tarih filtresi: order_date YYYYMMDD format
+    const salesCond = [];
+    const salesP = [];
+    if (filters.startDate) { salesCond.push("DATE_FORMAT(o.order_date,'%Y%m%d') >= ?"); salesP.push(filters.startDate); }
+    if (filters.endDate) { salesCond.push("DATE_FORMAT(o.order_date,'%Y%m%d') <= ?"); salesP.push(filters.endDate); }
+    const salesWhere = salesCond.length ? 'WHERE ' + salesCond.join(' AND ') : '';
+
+    // GA4 item interactions tarih filtresi: date YYYYMMDD format
+    const ga4Cond = [];
+    const ga4P = [];
+    if (filters.startDate) { ga4Cond.push('date >= ?'); ga4P.push(filters.startDate); }
+    if (filters.endDate) { ga4Cond.push('date <= ?'); ga4P.push(filters.endDate); }
+    const ga4Where = ga4Cond.length ? 'WHERE ' + ga4Cond.join(' AND ') : '';
+
     const [products] = await db.query(`
       SELECT
         p.sku,
@@ -765,22 +839,27 @@ class KpiService {
         END as conversionRate
       FROM products p
       LEFT JOIN (
-        SELECT item_id,
-          SUM(quantity) as totalQuantity,
-          SUM(line_total) as totalRevenue,
-          COUNT(DISTINCT order_id) as orderCount
-        FROM order_items GROUP BY item_id
+        SELECT oi.item_id,
+          SUM(oi.quantity) as totalQuantity,
+          SUM(oi.line_total) as totalRevenue,
+          COUNT(DISTINCT oi.order_id) as orderCount
+        FROM order_items oi
+        INNER JOIN orders o ON oi.order_id = o.order_id
+        ${salesWhere}
+        GROUP BY oi.item_id
       ) sales ON p.sku = sales.item_id
       LEFT JOIN (
         SELECT itemId,
           SUM(itemsViewed) as totalViews,
           SUM(itemsAddedToCart) as totalAddToCart,
           SUM(itemsPurchased) as totalPurchased
-        FROM ga4_item_interactions GROUP BY itemId
+        FROM ga4_item_interactions
+        ${ga4Where}
+        GROUP BY itemId
       ) ga4 ON p.sku = ga4.itemId
       ORDER BY totalRevenue DESC
       LIMIT 50
-    `);
+    `, [...salesP, ...ga4P]);
 
     return products;
   }
@@ -1029,19 +1108,28 @@ class KpiService {
    * Customer Analysis with RFM Segmentation
    */
   async getCustomerAnalysis(filters = {}) {
+    // Tarih filtresi: müşterinin ilk siparişi seçili aralıkta olan kohort
+    const dateCond = [];
+    const dateP = [];
+    if (filters.startDate) { dateCond.push('first_order_date >= ?'); dateP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { dateCond.push('first_order_date <= ?'); dateP.push(this.formatDateForSQL(filters.endDate)); }
+    const baseWhere = dateCond.length
+      ? dateCond.join(' AND ') + ' AND total_orders >= 1'
+      : 'total_orders >= 1';
+
     // Demographics
     const [ageGender] = await db.query(`
       SELECT age_group, gender, COUNT(*) as count, SUM(total_revenue) as revenue, AVG(total_orders) as avgOrders
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY age_group, gender
       ORDER BY age_group, gender
-    `);
+    `, dateP);
 
     const [cityDist] = await db.query(`
       SELECT city, COUNT(*) as count, SUM(total_revenue) as revenue, AVG(total_orders) as avgOrders
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY city ORDER BY count DESC LIMIT 20
-    `);
+    `, dateP);
 
     // Newsletter impact
     const [newsletter] = await db.query(`
@@ -1051,9 +1139,9 @@ class KpiService {
         AVG(total_orders) as avgOrders,
         AVG(total_revenue) as avgRevenue,
         SUM(total_revenue) as totalRevenue
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY is_newsletter_subscriber
-    `);
+    `, dateP);
 
     // CLV distribution
     const [clvDist] = await db.query(`
@@ -1068,12 +1156,15 @@ class KpiService {
         END as clvBucket,
         COUNT(*) as count,
         SUM(total_revenue) as totalRevenue
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY clvBucket
       ORDER BY MIN(total_revenue)
-    `);
+    `, dateP);
 
     // RFM Segmentation
+    const rfmWhere = dateCond.length
+      ? dateCond.join(' AND ') + ' AND total_orders >= 1 AND last_order_date IS NOT NULL'
+      : 'total_orders >= 1 AND last_order_date IS NOT NULL';
     const [rfmData] = await db.query(`
       SELECT
         customer_id, customer_name, city, gender, age_group,
@@ -1081,9 +1172,9 @@ class KpiService {
         last_order_date, first_order_date,
         DATEDIFF(CURDATE(), last_order_date) as recency_days
       FROM customers
-      WHERE total_orders >= 1 AND last_order_date IS NOT NULL
+      WHERE ${rfmWhere}
       ORDER BY total_revenue DESC
-    `);
+    `, dateP);
 
     // Calculate RFM scores and segments
     const rfmSegments = this.calculateRFMSegments(rfmData);
@@ -1095,16 +1186,16 @@ class KpiService {
         COUNT(*) as count,
         SUM(total_revenue) as revenue,
         AVG(total_revenue) as avgRevenue
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY type
-    `);
+    `, dateP);
 
     // Registration source distribution
     const [regSource] = await db.query(`
       SELECT registration_source, COUNT(*) as count, SUM(total_revenue) as revenue
-      FROM customers WHERE total_orders >= 1
+      FROM customers WHERE ${baseWhere}
       GROUP BY registration_source ORDER BY count DESC
-    `);
+    `, dateP);
 
     return {
       ageGender,
@@ -1350,6 +1441,19 @@ class KpiService {
    * Budget Tracking
    */
   async getBudgetTracking(filters = {}) {
+    // Inner subquery'lere tarih filtresi enjekte ediyoruz
+    const metaCond = [];
+    const metaP = [];
+    if (filters.startDate) { metaCond.push('date_start >= ?'); metaP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { metaCond.push('date_start <= ?'); metaP.push(this.formatDateForSQL(filters.endDate)); }
+    const metaWhere = metaCond.length ? 'WHERE ' + metaCond.join(' AND ') : '';
+
+    const gadsCond = [];
+    const gadsP = [];
+    if (filters.startDate) { gadsCond.push('date >= ?'); gadsP.push(this.formatDateForSQL(filters.startDate)); }
+    if (filters.endDate) { gadsCond.push('date <= ?'); gadsP.push(this.formatDateForSQL(filters.endDate)); }
+    const gadsWhere = gadsCond.length ? 'WHERE ' + gadsCond.join(' AND ') : '';
+
     // All campaigns with budget info
     const [campaigns] = await db.query(`
       SELECT c.*,
@@ -1363,16 +1467,16 @@ class KpiService {
         SELECT campaign_name, SUM(spend) as spend, SUM(impressions) as impressions,
                SUM(clicks) as clicks, SUM(actions_purchase) as conversions,
                SUM(action_values_purchase) as convValue
-        FROM meta_ads GROUP BY campaign_name
+        FROM meta_ads ${metaWhere} GROUP BY campaign_name
       ) meta ON c.campaign_name = meta.campaign_name AND c.platform = 'meta'
       LEFT JOIN (
         SELECT campaign_name, SUM(cost_micros)/1000000 as spend, SUM(impressions) as impressions,
                SUM(clicks) as clicks, SUM(conversions) as conversions,
                SUM(conversions_value) as convValue
-        FROM google_ads GROUP BY campaign_name
+        FROM google_ads ${gadsWhere} GROUP BY campaign_name
       ) gads ON c.campaign_name = gads.campaign_name AND c.platform = 'google'
       ORDER BY actualSpend DESC
-    `);
+    `, [...metaP, ...gadsP]);
 
     // Status summary
     const statusSummary = {};
@@ -1419,6 +1523,15 @@ class KpiService {
    * Stock Analysis
    */
   async getStockAnalysis(filters = {}) {
+    // Anchor = seçili endDate (yoksa veri max'i, o da yoksa CURDATE)
+    // "Son 30 / 7 gün" sayım pencerelerini seçili aralığın bitiş gününe göre hesapla
+    let anchor = 'CURDATE()';
+    const params = [];
+    if (filters.endDate) {
+      anchor = 'STR_TO_DATE(?, "%Y%m%d")';
+      params.push(filters.endDate);
+    }
+
     // Stock status with sales velocity
     const [stockStatus] = await db.query(`
       SELECT
@@ -1435,8 +1548,8 @@ class KpiService {
       LEFT JOIN (
         SELECT oi.item_id,
           SUM(oi.quantity) as totalSold,
-          SUM(CASE WHEN o.order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN oi.quantity ELSE 0 END) as last30days,
-          SUM(CASE WHEN o.order_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN oi.quantity ELSE 0 END) as last7days,
+          SUM(CASE WHEN o.order_date >= DATE_SUB(${anchor}, INTERVAL 30 DAY) AND o.order_date <= ${anchor} THEN oi.quantity ELSE 0 END) as last30days,
+          SUM(CASE WHEN o.order_date >= DATE_SUB(${anchor}, INTERVAL 7 DAY) AND o.order_date <= ${anchor} THEN oi.quantity ELSE 0 END) as last7days,
           SUM(oi.line_total) as totalRevenue
         FROM order_items oi
         INNER JOIN orders o ON oi.order_id = o.order_id
@@ -1444,7 +1557,7 @@ class KpiService {
       ) s ON p.sku = s.item_id
       WHERE p.is_active = 1
       ORDER BY daysOfStock ASC
-    `);
+    `, [...params, ...params, ...params, ...params]);
 
     // Critical stock (< 15 days remaining)
     const criticalStock = stockStatus.filter(p => Number(p.daysOfStock) < 15 && Number(p.daysOfStock) !== 999);

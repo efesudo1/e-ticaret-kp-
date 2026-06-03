@@ -40,3 +40,21 @@ NOTES.md
 # Docker volumes (mount edilmiş klasörler)
 backend/uploads/
 backend/logs/
+
+# Büyük medya / sunum / rapor dosyaları (repo'ya gitmez — GitHub 100MB limiti)
+*.mp4
+*.m4v
+*.mov
+*.pptx
+*.pptx.bak
+*.docx
+*.JPG
+*.jpg
+*.jpeg
+*.png
+*.pdf
+rapor_görselleri/
+video_assets/
+futura_font_family/
+sporthink_dummy_data*/
+*.xlsx

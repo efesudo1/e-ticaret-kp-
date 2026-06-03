@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { PAGE_PERMISSIONS, hasPermission } from '../lib/permissions';
 import ChatWidget from './ChatWidget';
 
-// Sidebar'da gösterilecek path'ler ve hangi gruba ait oldukları.
 const SIDEBAR_ORDER = [
   { type: 'item',    permKey: 'view_overview' },
   { type: 'item',    permKey: 'view_campaigns' },
@@ -20,10 +19,26 @@ const SIDEBAR_ORDER = [
 ];
 
 export default function Layout() {
+  // Desktop sidebar daraltma (collapse) — kullanıcı tercihi
   const [collapsed, setCollapsed] = useState(false);
+  // Mobile sidebar drawer açık mı (overlay olarak slide-in)
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Sayfa değişince mobile drawer'ı kapat
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  // Mobile drawer açıkken arka plan scroll'unu kilitle
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
 
   const getPageTitle = () => {
     if (location.pathname === '/profile') return 'Profilim';
@@ -65,13 +80,26 @@ export default function Layout() {
 
   return (
     <div className="app-layout">
-      <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+      {/* Mobile overlay (sidebar arkasında karartma) */}
+      {mobileOpen && (
+        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+      )}
+
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-logo">
           {collapsed ? (
             <img src="/sporthink-icon.svg" alt="Sporthink" />
           ) : (
             <img src="/sporthink-logo-disi.png" alt="Sporthink" className="full-logo" />
           )}
+          <button
+            type="button"
+            className="sidebar-mobile-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Menüyü kapat"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -87,6 +115,14 @@ export default function Layout() {
 
       <div className={`app-content ${collapsed ? 'collapsed' : ''}`}>
         <header className={`header ${collapsed ? 'collapsed' : ''}`}>
+          <button
+            type="button"
+            className="header-hamburger"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Menüyü aç"
+          >
+            <Menu size={22} />
+          </button>
           <h2 className="header-title">{getPageTitle()}</h2>
           <div className="header-actions">
             <div
@@ -98,7 +134,7 @@ export default function Layout() {
               <div className="header-user-avatar">
                 {user?.full_name?.charAt(0) || 'U'}
               </div>
-              <div style={{ fontSize: 13 }}>
+              <div className="header-user-meta">
                 <div style={{ fontWeight: 600 }}>{user?.full_name || 'User'}</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{user?.role || 'viewer'}</div>
               </div>

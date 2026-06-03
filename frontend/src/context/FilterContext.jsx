@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { filterAPI } from '../services/api';
 
 const FilterContext = createContext(null);
@@ -15,23 +15,32 @@ const parseYYYYMMDD = (s) => {
   return new Date(`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00`);
 };
 
-const computePresetFromAnchor = (preset, anchorDate) => {
-  const end = new Date(anchorDate);
-  const start = new Date(anchorDate);
+// Preset'i belirli bir referans (bitiş) tarihinden geri sayar.
+const computePresetFrom = (preset, refDate) => {
+  if (preset === 'all') return { startDate: '', endDate: '' };
+  const end = new Date(refDate);
+  const start = new Date(refDate);
   if (preset === '7d')  start.setDate(end.getDate() - 7);
   if (preset === '30d') start.setDate(end.getDate() - 30);
   if (preset === '90d') start.setDate(end.getDate() - 90);
   if (preset === 'ytd') { start.setFullYear(end.getFullYear(), 0, 1); }
-  if (preset === 'all') return { startDate: '', endDate: '' };
   return { startDate: toYYYYMMDD(start), endDate: toYYYYMMDD(end) };
 };
 
 const DEFAULT_PRESET = '30d';
+const ANCHOR_MODE_KEY = 'kpi_anchor_mode';
+const VALID_MODES = ['data', 'today'];
 
 export function FilterProvider({ children }) {
-  // İlk açılışta anchor henüz yok → 'all' (tüm zaman) ile başla.
-  // Bu, "son 30 gün bugünden hesaplanır → veri yok → 0" sorununu çözer.
-  // Anchor (data maxDate) gelince otomatik DEFAULT_PRESET'e (30g) kaymak için ayrı useEffect.
+  // anchorMode: 'data' = verinin son tarihinden geri say (default, snapshot için doğru)
+  //             'today' = bugünden geri say (canlı veri akışı için doğru)
+  const [anchorMode, setAnchorModeState] = useState(() => {
+    try {
+      const saved = localStorage.getItem(ANCHOR_MODE_KEY);
+      return VALID_MODES.includes(saved) ? saved : 'data';
+    } catch { return 'data'; }
+  });
+
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -42,10 +51,16 @@ export function FilterProvider({ children }) {
     brand: '',
     category: '',
     preset: 'all',
-    platform: 'all',  // 'all' | 'meta' | 'google'
+    platform: 'all',
   });
-  const [anchorDate, setAnchorDate] = useState(null);
-  const [autoApplied, setAutoApplied] = useState(false);
+  const [anchorDate, setAnchorDate] = useState(null); // verinin max tarihi (data mode için)
+
+  // Aktif referans tarih: mode'a göre data anchor veya bugün.
+  // Eğer data mode'unda anchor henüz gelmediyse fallback bugün.
+  const effectiveAnchor = useMemo(() => {
+    if (anchorMode === 'today') return new Date();
+    return anchorDate || new Date();
+  }, [anchorMode, anchorDate]);
 
   // Backend'den veri max tarihini çek, anchor olarak ayarla.
   // İlk anchor geldiğinde (kullanıcı henüz preset değiştirmediyse) son 30 güne otomatik kaydır.
@@ -59,23 +74,38 @@ export function FilterProvider({ children }) {
         const parsed = parseYYYYMMDD(cleaned);
         if (!parsed) return;
         setAnchorDate(parsed);
-        // Sadece kullanıcı henüz manuel preset seçmediyse otomatik 30g'ye kay
         setFilters(prev => {
-          if (prev.preset !== 'all' || prev.startDate || prev.endDate) return prev; // dokunma
-          const range = computePresetFromAnchor(DEFAULT_PRESET, parsed);
+          if (prev.preset !== 'all' || prev.startDate || prev.endDate) return prev;
+          // İlk açılışta anchorMode'a göre 30g uygula
+          const ref = anchorMode === 'today' ? new Date() : parsed;
+          const range = computePresetFrom(DEFAULT_PRESET, ref);
           return { ...prev, startDate: range.startDate, endDate: range.endDate, preset: DEFAULT_PRESET };
         });
-        setAutoApplied(true);
       })
-      .catch(() => { /* sessizce yut, 'all' kalır → backend tüm zamanı döner, veri yine var */ });
+      .catch(() => {});
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // anchorMode değiştiğinde mevcut preset'i (custom/all/month- dışında) yeniden hesapla
+  const setAnchorMode = useCallback((mode) => {
+    if (!VALID_MODES.includes(mode)) return;
+    setAnchorModeState(mode);
+    try { localStorage.setItem(ANCHOR_MODE_KEY, mode); } catch {}
+    setFilters(prev => {
+      const p = prev.preset;
+      const isRecalculable = ['7d', '30d', '90d', 'ytd'].includes(p);
+      if (!isRecalculable) return prev;
+      const ref = mode === 'today' ? new Date() : (anchorDate || new Date());
+      const range = computePresetFrom(p, ref);
+      return { ...prev, startDate: range.startDate, endDate: range.endDate };
+    });
+  }, [anchorDate]);
 
   const updateFilter = useCallback((key, value) => {
     setFilters(prev => ({
       ...prev,
       [key]: value,
-      // tarih elle değişirse preset 'custom'
       preset: (key === 'startDate' || key === 'endDate') ? 'custom' : prev.preset,
     }));
   }, []);
@@ -89,23 +119,20 @@ export function FilterProvider({ children }) {
       setFilters(prev => ({ ...prev, startDate: '', endDate: '', preset: 'all' }));
       return;
     }
-    // Preset'ler için anchor şart — anchor henüz yoksa anchor gelene kadar 'all' bırakma yerine bugünden hesapla.
-    // Anchor genelde mount'tan ~200ms sonra geliyor, bu durum nadirdir.
-    const useAnchor = anchorDate || new Date();
-    const range = computePresetFromAnchor(preset, useAnchor);
+    const ref = anchorMode === 'today' ? new Date() : (anchorDate || new Date());
+    const range = computePresetFrom(preset, ref);
     setFilters(prev => ({
       ...prev,
       startDate: range.startDate,
       endDate: range.endDate,
       preset,
     }));
-  }, [anchorDate]);
+  }, [anchorMode, anchorDate]);
 
   // Belirli bir ayın 1'i ile son günü arasını filtreye uygula
-  // year: 4 hane, monthIndex: 0-11
   const applyMonth = useCallback((year, monthIndex) => {
     const start = new Date(year, monthIndex, 1);
-    const end = new Date(year, monthIndex + 1, 0); // ayın son günü
+    const end = new Date(year, monthIndex + 1, 0);
     const fmt = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     setFilters(prev => ({
       ...prev,
@@ -120,24 +147,25 @@ export function FilterProvider({ children }) {
       channel: '', campaign: '', device: '', city: '', brand: '', category: '',
       platform: 'all',
     };
-    if (anchorDate) {
-      const range = computePresetFromAnchor(DEFAULT_PRESET, anchorDate);
+    const ref = anchorMode === 'today' ? new Date() : anchorDate;
+    if (ref) {
+      const range = computePresetFrom(DEFAULT_PRESET, ref);
       setFilters({
         ...baseFields,
         startDate: range.startDate, endDate: range.endDate, preset: DEFAULT_PRESET,
       });
     } else {
-      // Anchor yoksa 'all' (tüm zaman) — veri her zaman dolu
       setFilters({ ...baseFields, startDate: '', endDate: '', preset: 'all' });
     }
-  }, [anchorDate]);
+  }, [anchorMode, anchorDate]);
 
   const activeFilters = Object.entries(filters)
     .filter(([k, v]) => k !== 'preset' && k !== 'platform' && v !== '');
 
   return (
     <FilterContext.Provider value={{
-      filters, updateFilter, applyPreset, applyMonth, resetFilters, activeFilters, anchorDate
+      filters, updateFilter, applyPreset, applyMonth, resetFilters, activeFilters,
+      anchorDate, anchorMode, setAnchorMode, effectiveAnchor,
     }}>
       {children}
     </FilterContext.Provider>

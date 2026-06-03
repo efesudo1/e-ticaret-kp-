@@ -887,6 +887,47 @@ input, select, textarea {
   margin-left: 4px;
 }
 
+/* ---- Anchor mode toggle (Son veriden / Bugünden) ---- */
+.anchor-toggle {
+  display: inline-flex;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.anchor-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.anchor-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.anchor-toggle-btn.active {
+  background: var(--accent-red);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(227, 6, 19, 0.35);
+}
+
+.anchor-toggle-btn svg {
+  flex-shrink: 0;
+}
+
 /* ---- Ay seçici popup ---- */
 .month-picker-wrapper {
   position: relative;
@@ -2421,41 +2462,286 @@ input, select, textarea {
   font-family: 'Futura PT', sans-serif !important;
 }
 
-/* ---- Responsive ---- */
+/* ---- Mobile-only öğeler (default: gizli, mobilde gösterilir) ---- */
+.header-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-right: 12px;
+}
+
+.header-hamburger:hover {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.sidebar-mobile-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 99;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ---- Responsive: Tablet (≤1024px) ---- */
 @media (max-width: 1024px) {
   .charts-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .main-content {
+    padding: 20px;
+    padding-top: calc(var(--header-height) + 20px);
+  }
+  .compare-grid {
+    gap: 16px;
+  }
 }
 
+/* ---- Responsive: Mobile (≤768px) ---- */
 @media (max-width: 768px) {
+  /* ---- Layout: sidebar = mobile drawer (overlay), header solu boş ---- */
   .sidebar {
-    width: var(--sidebar-collapsed);
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    z-index: 110;
   }
-  .sidebar .nav-item span,
-  .sidebar .nav-section-title,
-  .sidebar-logo h1 {
-    display: none;
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
   }
-  .app-content {
-    margin-left: var(--sidebar-collapsed);
+  .sidebar.collapsed {
+    width: 280px;  /* mobilde "collapse" konsepti yok */
   }
-  .header {
-    left: var(--sidebar-collapsed);
+  .sidebar-overlay {
+    display: block;
   }
-  .kpi-grid {
-    grid-template-columns: 1fr;
+  .sidebar-mobile-close {
+    display: inline-flex;
   }
+  .sidebar-footer { display: none; }  /* mobile'da collapse butonu gerekmez */
+
+  .app-content,
+  .app-content.collapsed {
+    margin-left: 0;
+  }
+  .header,
+  .header.collapsed {
+    left: 0;
+    padding: 0 12px;
+  }
+  .header-hamburger {
+    display: inline-flex;
+  }
+  .header-title {
+    font-size: 16px;
+    flex: 1;
+    margin: 0 8px;
+  }
+  .header-user-meta { display: none; }  /* mobilde sadece avatar */
+  .header-user {
+    padding: 4px;
+    border: none;
+    background: transparent;
+  }
+  .header-actions { gap: 6px; }
+
+  /* ---- Main content ---- */
   .main-content {
-    padding: 16px;
-    padding-top: calc(var(--header-height) + 16px);
+    padding: 12px;
+    padding-top: calc(var(--header-height) + 12px);
   }
+  .page-container { padding: 0; }
+
+  /* ---- KPI cards: tek sütun, daha kompakt ---- */
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+  .kpi-card {
+    padding: 16px !important;
+  }
+  .kpi-card-value {
+    font-size: 22px !important;
+  }
+  .kpi-card-label {
+    font-size: 11px !important;
+  }
+
+  /* ---- Filter bar: dikey ve scroll edilebilir ---- */
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+  .anchor-toggle {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .anchor-toggle-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .filter-presets {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .filter-presets::-webkit-scrollbar { display: none; }
+  .filter-presets .chip {
+    flex-shrink: 0;
+  }
+  .filter-platform-group {
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    padding-left: 0;
+    margin-left: 0;
+    padding-top: 8px;
+  }
+  .filter-bar .filter-item,
+  .filter-bar select {
+    width: 100%;
+  }
+  .filter-bar .filter-date-range {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .filter-anchor-label {
+    margin-left: 0;
+    text-align: center;
+    font-size: 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  /* ---- Cards & charts ---- */
+  .card-header {
+    padding: 16px 16px 0;
+  }
+  .card-body {
+    padding: 16px;
+  }
+  .chart-card { padding: 16px !important; }
+  .chart-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* ---- Compare grid (Meta vs Google): tek sütun ---- */
+  .compare-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  /* ---- DataTable: yatay scroll ---- */
+  .datatable-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .datatable {
+    min-width: 600px;
+  }
+  .datatable th, .datatable td {
+    padding: 8px 10px !important;
+    font-size: 12px;
+  }
+  .datatable-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .datatable-search { width: 100%; }
+
+  /* ---- Modal full-width ---- */
+  .modal-content {
+    width: 95vw;
+    max-width: 95vw;
+    max-height: 90vh;
+    margin: 5vh auto;
+  }
+  .modal-header, .modal-body, .modal-footer {
+    padding: 16px;
+  }
+
+  /* ---- Month picker popup mobile ---- */
+  .month-picker-popup {
+    position: fixed !important;
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: auto !important;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  /* ---- Chat widget mobile: bottom sheet ---- */
+  .chat-panel {
+    width: 100vw !important;
+    height: calc(100vh - 80px) !important;
+    right: 0 !important;
+    bottom: 80px !important;
+    border-radius: 16px 16px 0 0 !important;
+  }
+  .chat-fab {
+    right: 16px !important;
+    bottom: 16px !important;
+  }
+
+  /* ---- Decision Center kart grid'i ---- */
+  .dc-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ---- Excel report buttons grid ---- */
+  .reports-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---- Responsive: Small mobile (≤480px) ---- */
+@media (max-width: 480px) {
+  .header-title {
+    font-size: 15px;
+  }
+  .kpi-card-value {
+    font-size: 20px !important;
+  }
+  .chip {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
   }
 }
 
